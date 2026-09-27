@@ -1,0 +1,6 @@
+{
+  "name": "تطبيق المدرس الذكي - إدارة الطلاب والحضور والمدفوعات",
+  "description": "منصة شاملة للمدرس لإدارة الطلاب والمجموعات، مسح باركود QR للحضور والمدفوعات، إرسال إشعارات وتتبع الدفعات بالوضع الليلي والنهاري.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
