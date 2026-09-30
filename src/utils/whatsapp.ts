@@ -72,7 +72,9 @@ export function generateAttendanceWhatsAppUrl(
   group: Group | undefined,
   status: 'present' | 'absent' | 'late' | 'excused',
   date: string,
-  time: string
+  time: string,
+  homeworkStatus?: 'completed' | 'partial' | 'incomplete' | 'excused' | 'none',
+  homeworkNote?: string
 ): string {
   const teacherTitle = teacher.gender === 'female' ? 'الأستاذة' : 'الأستاذ';
   const statusArabic =
@@ -84,6 +86,17 @@ export function generateAttendanceWhatsAppUrl(
       ? 'ℹ️ غائب بعذر مسبق'
       : '❌ غائب عن الحصة اليوم';
 
+  const homeworkArabic =
+    homeworkStatus === 'completed'
+      ? '📚 الواجب المنزلي: ✅ تم أداء الواجب كاملاً ومتقناً'
+      : homeworkStatus === 'partial'
+      ? '📚 الواجب المنزلي: ⚠️ تم حل الواجب جزئياً ويحتاج استكمال'
+      : homeworkStatus === 'incomplete'
+      ? '📚 الواجب المنزلي: ❌ لم يقم الطالب بحل الواجب المنزلي المطلوب اليوم'
+      : homeworkStatus === 'excused'
+      ? '📚 الواجب المنزلي: ℹ️ معفى من الواجب بعذر مسبق'
+      : '';
+
   const message = `السلام عليكم ورحمة الله وبركاته 🌹
 ولي أمر الطالب المحترم: *${student.name}*
 كود الطالب: *${student.code}*
@@ -93,6 +106,7 @@ export function generateAttendanceWhatsAppUrl(
 
 إفادة الحضور:
 ${statusArabic}
+${homeworkArabic ? `\n${homeworkArabic}` : ''}${homeworkNote ? ` (${homeworkNote})` : ''}
 
 مع تحيات: ${teacherTitle} ${teacher.name}
 ${teacher.centerName ? `(${teacher.centerName})` : ''}

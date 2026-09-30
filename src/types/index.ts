@@ -64,6 +64,7 @@ export interface Student {
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+export type HomeworkStatus = 'completed' | 'partial' | 'incomplete' | 'excused' | 'none';
 
 export interface AttendanceRecord {
   id: string;
@@ -72,6 +73,8 @@ export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   status: AttendanceStatus;
+  homeworkStatus?: HomeworkStatus;
+  homeworkNote?: string;
   note?: string;
   method: 'qr' | 'manual' | 'bulk';
 }
@@ -162,3 +165,22 @@ export interface StudentExamScore {
   dateGraded: string;
   answersGiven?: Record<string, number>; // questionId -> selectedOption
 }
+
+export type QuestionType = 'mcq' | 'true_false' | 'short_answer';
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface BankQuestion {
+  id: string;
+  subject: string;
+  lesson: string;
+  grade?: string;
+  type: QuestionType;
+  difficulty: QuestionDifficulty;
+  questionText: string;
+  options: string[]; // for mcq or ['صواب', 'خطأ']
+  correctAnswer: string | number; // index (number) for mcq or string
+  explanation?: string;
+  points: number;
+  createdAt: string;
+}
+

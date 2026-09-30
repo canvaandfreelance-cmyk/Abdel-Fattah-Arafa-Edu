@@ -1,14 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4338ca"/>
-      <stop offset="50%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+    <linearGradient id="appGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2862FF"/>
+      <stop offset="45%" stop-color="#554BFF"/>
+      <stop offset="80%" stop-color="#8B3EF6"/>
+      <stop offset="100%" stop-color="#AD2CF0"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="128" fill="url(#grad)"/>
-  <path d="M256 128 L96 208 L256 288 L416 208 Z" fill="#ffffff" opacity="0.95"/>
-  <path d="M144 240 L144 320 C144 370 200 400 256 400 C312 400 368 370 368 320 L368 240 L256 296 Z" fill="#ffffff" opacity="0.85"/>
-  <circle cx="396" cy="272" r="16" fill="#fbbf24"/>
-  <path d="M396 288 L396 352" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Background with smooth rounded corners -->
+  <rect width="512" height="512" rx="115" fill="url(#appGrad)"/>
+
+  <!-- Lower Cap Base -->
+  <path d="M 136 248 C 136 248, 200 286, 256 304 C 312 286, 376 248, 376 248 L 376 332 C 376 384, 328 412, 256 412 C 184 412, 136 384, 136 332 Z" fill="#FFFFFF"/>
+
+  <!-- Top Rhombus Diamond -->
+  <path d="M 256 116 L 420 208 L 256 300 L 92 208 Z" fill="#FFFFFF"/>
+
+  <!-- Golden Yellow Tassel -->
+  <circle cx="410" cy="272" r="18" fill="#FFB800"/>
+  <rect x="401" y="284" width="18" height="90" rx="9" fill="#FFB800"/>
 </svg>

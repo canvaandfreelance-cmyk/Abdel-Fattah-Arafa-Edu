@@ -13,13 +13,13 @@ export default defineConfig(({ command }) => {
         ? [
             VitePWA({
               registerType: 'autoUpdate',
-              includeAssets: ['favicon.ico', 'icon.svg'],
+              includeAssets: ['favicon.ico', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
               manifest: {
                 id: '/',
                 name: 'نظام المعلم الذكي - إدارة الطلاب والحصص',
                 short_name: 'نظام المعلم',
-                description: 'تطبيق لإدارة الطلاب والمجموعات والحضور والامتحانات بدون إنترنت',
-                theme_color: '#4338ca',
+                description: 'تطبيق لإدارة الطلاب والمجموعات والحضور والامتحانات وبنك الأسئلة بدون إنترنت',
+                theme_color: '#2862ff',
                 background_color: '#0f172a',
                 display: 'standalone',
                 start_url: '/',
@@ -27,9 +27,27 @@ export default defineConfig(({ command }) => {
                 icons: [
                   {
                     src: '/icon.svg',
-                    sizes: '192x192 512x512',
+                    sizes: 'any',
                     type: 'image/svg+xml',
                     purpose: 'any',
+                  },
+                  {
+                    src: '/icon-192.png',
+                    sizes: '192x192',
+                    type: 'image/png',
+                    purpose: 'any',
+                  },
+                  {
+                    src: '/icon-512.png',
+                    sizes: '512x512',
+                    type: 'image/png',
+                    purpose: 'any',
+                  },
+                  {
+                    src: '/icon-512.png',
+                    sizes: '512x512',
+                    type: 'image/png',
+                    purpose: 'maskable',
                   },
                 ],
               },

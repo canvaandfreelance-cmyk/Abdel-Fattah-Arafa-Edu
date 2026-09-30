@@ -8,6 +8,7 @@ import {
   ResourceSubmission,
   Exam,
   StudentExamScore,
+  BankQuestion,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -21,6 +22,7 @@ const STORAGE_KEYS = {
   EXAMS: 'teacher_app_exams',
   EXAM_SCORES: 'teacher_app_exam_scores',
   SUBMISSIONS: 'teacher_app_submissions',
+  QUESTIONS: 'teacher_app_questions',
 };
 
 export const INITIAL_TEACHER: TeacherProfile = {
@@ -467,6 +469,93 @@ export function saveToStorage<T>(key: string, value: T): void {
   }
 }
 
+export const INITIAL_QUESTIONS: BankQuestion[] = [
+  {
+    id: 'q-1',
+    subject: 'الفيزياء',
+    lesson: 'قوانين نيوتن والحركة الدائرية',
+    grade: 'الصف الأول الثانوي',
+    type: 'mcq',
+    difficulty: 'medium',
+    questionText: 'عند مضاعفة السرعة المماسية لجسم يتحرك في مسار دائري منتظم، فإن القوة الجاذبة المركزية اللازمة لإبقائه في نفس المسار:',
+    options: ['تزداد إلى الضعف', 'تزداد إلى أربعة أمثالها', 'تقل إلى النصف', 'تظل ثابتة'],
+    correctAnswer: 1,
+    explanation: 'القوة الجاذبة المركزية تتناسب طردياً مع مربع السرعة المماسية (F = m*v^2 / r). فعند مضاعفة السرعة تصبح (2v)^2 = 4v^2.',
+    points: 2,
+    createdAt: '2026-09-15',
+  },
+  {
+    id: 'q-2',
+    subject: 'الكيمياء',
+    lesson: 'الروابط الكيميائية والتهجين',
+    grade: 'الصف الثاني الثانوي',
+    type: 'mcq',
+    difficulty: 'hard',
+    questionText: 'نوع التهجين في ذرة الكربون في جزيء الأسيتيلين (C2H2) والزاوية بين الروابط المهجنة هي:',
+    options: ['sp3 وزاوية 109.5°', 'sp2 وزاوية 120°', 'sp وزاوية 180°', 'dsp2 وزاوية 90°'],
+    correctAnswer: 2,
+    explanation: 'في جزئ الأسيتيلين، كل ذرة كربون متصلة برابطة أحادية ورابطة ثلاثية (واحدة سيجما واثنتان باي)، وبالتالي التهجين sp والشكل خطي بزاوية 180°.',
+    points: 2,
+    createdAt: '2026-09-16',
+  },
+  {
+    id: 'q-3',
+    subject: 'الفيزياء',
+    lesson: 'التيار الكهربي وقانون أوم',
+    grade: 'الصف الثالث الثانوي',
+    type: 'true_false',
+    difficulty: 'easy',
+    questionText: 'المقاومة النوعية لمادة موصل تزداد بزيادة درجة حرارة الموصل.',
+    options: ['صواب', 'خطأ'],
+    correctAnswer: 'صواب',
+    explanation: 'عند رفع درجة الحرارة تزداد سعة وسرعة اهتزاز ذرات الفلز مما يزيد من معدل تصادم الإلكترونات معها فتزداد المقاومة النوعية.',
+    points: 1,
+    createdAt: '2026-09-18',
+  },
+  {
+    id: 'q-4',
+    subject: 'الفيزياء',
+    lesson: 'قانون أوم للدائرة المغلقة',
+    grade: 'الصف الثالث الثانوي',
+    type: 'mcq',
+    difficulty: 'medium',
+    questionText: 'في دائرة كهربية تحتوي على بطارية ومقاومة خارجية، عندما تصبح المقاومة الخارجية مساوية للمقاومة الداخلية، فإن القدرة الكهربية المستنفدة في المقاومة الخارجية تكون:',
+    options: ['أقل ما يمكن', 'أقصى ما يمكن (أعظمية)', 'تساوي صفراً', 'نصف القوة الدافعة'],
+    correctAnswer: 1,
+    explanation: 'تتحقق أقصى قدرة منقولة للحمل الخارجي (Maximum Power Transfer) عندما R = r.',
+    points: 2,
+    createdAt: '2026-09-20',
+  },
+  {
+    id: 'q-5',
+    subject: 'الكيمياء',
+    lesson: 'الاتزان الكيميائي وقاعدة لوشاتيليه',
+    grade: 'الصف الثالث الثانوي',
+    type: 'true_false',
+    difficulty: 'easy',
+    questionText: 'إضافة عامل حفاز إلى تفاعل انعكاسي متزن يزيد من كمية النواتج عند الاتزان.',
+    options: ['صواب', 'خطأ'],
+    correctAnswer: 'خطأ',
+    explanation: 'العامل الحفاز يسرع التفاعلين الطردي والعكسي بنفس المقدار دون التأثير على موضع الاتزان أو كميات المواد.',
+    points: 1,
+    createdAt: '2026-09-22',
+  },
+  {
+    id: 'q-6',
+    subject: 'الفيزياء',
+    lesson: 'الفيزياء الحديثة وإشعاع الجسم الأسود',
+    grade: 'الصف الثالث الثانوي',
+    type: 'mcq',
+    difficulty: 'hard',
+    questionText: 'وفقاً لقانون فين، فإن الطول الموجي المصاحب لأقصى شدة إشعاع يصدر من جسم متوهج يتناسب:',
+    options: ['طردياً مع درجة الحرارة المطلقة', 'عكسياً مع درجة الحرارة المطلقة', 'طردياً مع مربع درجة الحرارة', 'عكسياً مع الجذر التربيعي لدرجة الحرارة'],
+    correctAnswer: 1,
+    explanation: 'قانون فين ينص على أن: λ_max يتناسب عكسياً مع درجة الحرارة الكلفينية المطلقة T.',
+    points: 2,
+    createdAt: '2026-09-24',
+  },
+];
+
 export const StorageService = {
   getTeacher: () => getFromStorage<TeacherProfile>(STORAGE_KEYS.TEACHER, INITIAL_TEACHER),
   saveTeacher: (data: TeacherProfile) => saveToStorage(STORAGE_KEYS.TEACHER, data),
@@ -494,6 +583,9 @@ export const StorageService = {
 
   getSubmissions: () => getFromStorage<ResourceSubmission[]>(STORAGE_KEYS.SUBMISSIONS, INITIAL_SUBMISSIONS),
   saveSubmissions: (data: ResourceSubmission[]) => saveToStorage(STORAGE_KEYS.SUBMISSIONS, data),
+
+  getQuestions: () => getFromStorage<BankQuestion[]>(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS),
+  saveQuestions: (data: BankQuestion[]) => saveToStorage(STORAGE_KEYS.QUESTIONS, data),
 
   getDarkMode: () => {
     try {
