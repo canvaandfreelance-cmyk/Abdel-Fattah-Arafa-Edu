@@ -19,11 +19,13 @@ import {
   Save,
   Check,
   ExternalLink,
+  Printer,
 } from 'lucide-react';
 import { Exam, Student, Group, TeacherProfile, StudentExamScore } from '../types';
 import { ExamWhatsAppModal } from './ExamWhatsAppModal';
 import { generateExamScoreWhatsAppUrl } from '../utils/whatsapp';
 import { StorageService } from '../utils/storage';
+import { exportQuizToPDF } from '../utils/pdfExport';
 
 interface ExamsViewProps {
   exams: Exam[];
@@ -313,6 +315,43 @@ export const ExamsView: React.FC<ExamsViewProps> = ({
                         الموضوعات المقررة:
                       </span>
                       <p className="line-clamp-2">{exam.topics}</p>
+                    </div>
+                  )}
+
+                  {exam.questions && exam.questions.length > 0 && (
+                    <div className="p-2.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>{exam.questions.length} سؤال (صح وغلط، مقالي، اختياري)</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const bankQuestions = (exam.questions || []).map((q) => ({
+                            id: q.id,
+                            subject: teacher.subject,
+                            lesson: exam.topics || 'موضوعات الاختبار',
+                            type: q.type || 'mcq',
+                            difficulty: 'medium' as const,
+                            questionText: q.questionText,
+                            options: q.options || [],
+                            correctAnswer:
+                              q.type === 'essay'
+                                ? q.correctAnswerText || ''
+                                : q.type === 'true_false'
+                                ? q.correctAnswerText || (q.correctOptionIndex === 0 ? 'صواب' : 'خطأ')
+                                : (q.correctOptionIndex ?? 0),
+                            explanation: q.explanation,
+                            points: q.points || 1,
+                            createdAt: exam.date,
+                          }));
+                          exportQuizToPDF(exam.title, bankQuestions, teacher, group?.name, true);
+                        }}
+                        className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-white font-extrabold flex items-center gap-1 text-[11px]"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>طباعة PDF</span>
+                      </button>
                     </div>
                   )}
 

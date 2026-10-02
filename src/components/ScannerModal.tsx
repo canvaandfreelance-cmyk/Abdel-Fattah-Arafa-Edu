@@ -7,6 +7,7 @@ import {
   AttendanceRecord,
   PaymentRecord,
   AttendanceStatus,
+  HomeworkStatus,
 } from '../types';
 import {
   X,
@@ -46,7 +47,12 @@ interface ScannerModalProps {
   groups: Group[];
   teacher: TeacherProfile;
   attendanceRecords: AttendanceRecord[];
-  onRecordAttendance: (studentId: string, status: AttendanceStatus, note?: string) => void;
+  onRecordAttendance: (
+    studentId: string,
+    status: AttendanceStatus,
+    note?: string,
+    homeworkStatus?: HomeworkStatus
+  ) => void;
   onRecordPayment: (
     studentId: string,
     amount: number,
@@ -692,26 +698,61 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
                 </div>
               </div>
 
-              {/* Attendance WhatsApp Action */}
+              {/* Attendance & Homework Action */}
               {scannedStudent && mode === 'attendance' && (
-                <div className="mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between">
-                  <span className="text-xs">إشعار ولي الأمر بالواتساب:</span>
-                  <a
-                    href={generateAttendanceWhatsAppUrl(
-                      scannedStudent,
-                      teacher,
-                      studentGroup,
-                      'present',
-                      new Date().toLocaleDateString('ar-EG'),
-                      new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                    )}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>إرسال رسالة الحضور</span>
-                  </a>
+                <div className="mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800/60 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      📚 حالة الواجب:
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(scannedStudent.id, 'present', undefined, 'completed')
+                        }
+                        className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xs hover:bg-emerald-700 transition-all"
+                      >
+                        ✅ كامل
+                      </button>
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(scannedStudent.id, 'present', undefined, 'partial')
+                        }
+                        className="px-2.5 py-1 rounded-xl bg-amber-500 text-white text-xs font-bold shadow-xs hover:bg-amber-600 transition-all"
+                      >
+                        ⚠️ جزئي
+                      </button>
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(scannedStudent.id, 'present', undefined, 'incomplete')
+                        }
+                        className="px-2.5 py-1 rounded-xl bg-rose-600 text-white text-xs font-bold shadow-xs hover:bg-rose-700 transition-all"
+                      >
+                        ❌ لم يحل
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-slate-500">إشعار ولي الأمر بالواتساب:</span>
+                    <a
+                      href={generateAttendanceWhatsAppUrl(
+                        scannedStudent,
+                        teacher,
+                        studentGroup,
+                        'present',
+                        new Date().toISOString().split('T')[0],
+                        new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+                        'completed'
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>إرسال إفادة الحضور</span>
+                    </a>
+                  </div>
                 </div>
               )}
             </div>

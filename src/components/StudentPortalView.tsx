@@ -79,7 +79,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 
   // Online Exam taking state
   const [activeExamToTake, setActiveExamToTake] = useState<Exam | null>(null);
-  const [userExamAnswers, setUserExamAnswers] = useState<Record<string, number>>({});
+  const [userExamAnswers, setUserExamAnswers] = useState<Record<string, number | string>>({});
   const [examSubmittedResult, setExamSubmittedResult] = useState<{
     score: number;
     maxScore: number;
@@ -192,15 +192,36 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
   const handleInstantGradeExam = (exam: Exam) => {
     if (!exam.questions || exam.questions.length === 0) return;
 
-    let correctCount = 0;
+    let totalPoints = 0;
+    let earnedPoints = 0;
+
     exam.questions.forEach((q) => {
+      const qPts = q.points || 1;
+      totalPoints += qPts;
       const chosen = userExamAnswers[q.id];
-      if (chosen !== undefined && chosen === q.correctOptionIndex) {
-        correctCount += 1;
+
+      if (q.type === 'true_false') {
+        const correctStr = q.correctAnswerText || (q.correctOptionIndex === 0 ? 'صواب' : 'خطأ');
+        if (
+          chosen !== undefined &&
+          (chosen === q.correctOptionIndex || String(chosen).trim() === correctStr.trim())
+        ) {
+          earnedPoints += qPts;
+        }
+      } else if (q.type === 'essay') {
+        // Essay question: if student provided an answer, credit appropriately
+        if (chosen !== undefined && String(chosen).trim().length > 6) {
+          earnedPoints += qPts;
+        }
+      } else {
+        // MCQ question
+        if (chosen !== undefined && Number(chosen) === q.correctOptionIndex) {
+          earnedPoints += qPts;
+        }
       }
     });
 
-    const calculatedScore = Math.round((correctCount / exam.questions.length) * exam.maxScore);
+    const calculatedScore = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * exam.maxScore) : 0;
     const percent = Math.round((calculatedScore / exam.maxScore) * 100);
     const passed = calculatedScore >= (exam.passingScore || exam.maxScore * 0.5);
 
@@ -538,51 +559,121 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
                   <div className="space-y-6">
                     {activeExamToTake.questions && activeExamToTake.questions.length > 0 ? (
                       <div className="space-y-5">
-                        {activeExamToTake.questions.map((q, idx) => (
-                          <div
-                            key={q.id}
-                            className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 space-y-3"
-                          >
-                            <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
-                              السؤال رقم ({idx + 1}):
-                            </span>
-                            <p className="font-bold text-sm text-slate-900 dark:text-white leading-relaxed">
-                              {q.questionText}
-                            </p>
+                        {activeExamToTake.questions.map((q, idx) => {
+                          const isEssay = q.type === 'essay';
+                          const isTrueFalse = q.type === 'true_false';
+                          const isMcq = !isEssay && !isTrueFalse;
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                              {q.options.map((opt, optIdx) => {
-                                const isSelected = userExamAnswers[q.id] === optIdx;
-                                return (
-                                  <button
-                                    key={optIdx}
-                                    type="button"
-                                    onClick={() =>
+                          return (
+                            <div
+                              key={q.id}
+                              className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
+                                  السؤال رقم ({idx + 1}):
+                                </span>
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300">
+                                  {isTrueFalse ? 'صح وغلط' : isEssay ? 'سؤال مقالي' : 'اختيار من متعدد'} • [{q.points || 1} د]
+                                </span>
+                              </div>
+
+                              <p className="font-bold text-sm text-slate-900 dark:text-white leading-relaxed">
+                                {q.questionText}
+                              </p>
+
+                              {/* MCQ Option Buttons */}
+                              {isMcq && q.options && q.options.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                  {q.options.map((opt, optIdx) => {
+                                    const isSelected = userExamAnswers[q.id] === optIdx;
+                                    return (
+                                      <button
+                                        key={optIdx}
+                                        type="button"
+                                        onClick={() =>
+                                          setUserExamAnswers({
+                                            ...userExamAnswers,
+                                            [q.id]: optIdx,
+                                          })
+                                        }
+                                        className={`p-3 rounded-xl text-xs text-right font-semibold border transition-all flex items-center justify-between ${
+                                          isSelected
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                        }`}
+                                      >
+                                        <span>{opt}</span>
+                                        <span
+                                          className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
+                                            isSelected ? 'border-white bg-white text-indigo-600' : 'border-slate-300'
+                                          }`}
+                                        >
+                                          {isSelected ? '✓' : ''}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* True/False Buttons */}
+                              {isTrueFalse && (
+                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                  {[
+                                    { label: 'صواب (العبارة صحيحة)', val: 'صواب', optIdx: 0, icon: '✅' },
+                                    { label: 'خطأ (العبارة خاطئة)', val: 'خطأ', optIdx: 1, icon: '❌' },
+                                  ].map((choice) => {
+                                    const isSelected =
+                                      userExamAnswers[q.id] === choice.val ||
+                                      userExamAnswers[q.id] === choice.optIdx;
+                                    return (
+                                      <button
+                                        key={choice.val}
+                                        type="button"
+                                        onClick={() =>
+                                          setUserExamAnswers({
+                                            ...userExamAnswers,
+                                            [q.id]: choice.val,
+                                          })
+                                        }
+                                        className={`p-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                                          isSelected
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                        }`}
+                                      >
+                                        <span>{choice.icon}</span>
+                                        <span>{choice.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Essay Question Input */}
+                              {isEssay && (
+                                <div className="pt-1">
+                                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                                    اكتب إجابتك المقالية وشرحك هنا:
+                                  </label>
+                                  <textarea
+                                    rows={3}
+                                    placeholder="اكتب خطوات الحل أو التعليل أو المقارنة بالتفصيل..."
+                                    value={String(userExamAnswers[q.id] || '')}
+                                    onChange={(e) =>
                                       setUserExamAnswers({
                                         ...userExamAnswers,
-                                        [q.id]: optIdx,
+                                        [q.id]: e.target.value,
                                       })
                                     }
-                                    className={`p-3 rounded-xl text-xs text-right font-semibold border transition-all flex items-center justify-between ${
-                                      isSelected
-                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
-                                    }`}
-                                  >
-                                    <span>{opt}</span>
-                                    <span
-                                      className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
-                                        isSelected ? 'border-white bg-white text-indigo-600' : 'border-slate-300'
-                                      }`}
-                                    >
-                                      {isSelected ? '✓' : ''}
-                                    </span>
-                                  </button>
-                                );
-                              })}
+                                    className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                  />
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
 
                         <button
                           onClick={() => handleInstantGradeExam(activeExamToTake)}

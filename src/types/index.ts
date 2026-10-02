@@ -133,9 +133,12 @@ export interface ResourceSubmission {
 export interface ExamQuestion {
   id: string;
   questionText: string;
-  options: string[];
-  correctOptionIndex: number;
+  type?: 'mcq' | 'true_false' | 'essay';
+  options?: string[];
+  correctOptionIndex?: number;
+  correctAnswerText?: string;
   explanation?: string;
+  points?: number;
 }
 
 export interface Exam {
@@ -163,10 +166,10 @@ export interface StudentExamScore {
   maxScore: number;
   notes?: string;
   dateGraded: string;
-  answersGiven?: Record<string, number>; // questionId -> selectedOption
+  answersGiven?: Record<string, number | string>; // questionId -> selectedOption index or text
 }
 
-export type QuestionType = 'mcq' | 'true_false' | 'short_answer';
+export type QuestionType = 'mcq' | 'true_false' | 'essay';
 export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface BankQuestion {

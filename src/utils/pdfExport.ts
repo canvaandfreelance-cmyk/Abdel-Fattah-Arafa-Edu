@@ -1,4 +1,4 @@
-import { Student, Group, TeacherProfile, AttendanceRecord, PaymentRecord } from '../types';
+import { Student, Group, TeacherProfile, AttendanceRecord, PaymentRecord, BankQuestion } from '../types';
 
 export interface PDFExportOptions {
   title: string;
@@ -463,3 +463,148 @@ export function exportPaymentsToPDF(
 
   printHtmlReport(reportTitle.replace(/\s+/g, '_'), bodyHtml, teacher);
 }
+
+/**
+ * Exports a beautifully structured, printable Exam paper with student name fields,
+ * questions formatted clearly with lettered options, marks, and optional model answers.
+ */
+export function exportQuizToPDF(
+  examTitle: string,
+  questions: BankQuestion[],
+  teacher: TeacherProfile,
+  groupName?: string,
+  includeAnswerKey: boolean = false
+) {
+  const totalPoints = questions.reduce((sum, q) => sum + (q.points || 1), 0);
+  const arabicLetters = ['أ', 'ب', 'ج', 'د', 'هـ'];
+
+  const questionsHtml = questions
+    .map((q, idx) => {
+      let optionsHtml = '';
+      if (q.type === 'mcq' && q.options?.length > 0) {
+        optionsHtml = `
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; padding-right: 15px;">
+            ${q.options
+              .map(
+                (opt, oIdx) => `
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 13.5px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1.5px solid #64748b; border-radius: 50%; font-size: 11px; font-weight: bold; color: #1e293b;">
+                  ${arabicLetters[oIdx] || oIdx + 1}
+                </span>
+                <span>${opt}</span>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        `;
+      } else if (q.type === 'true_false') {
+        optionsHtml = `
+          <div style="display: flex; gap: 30px; margin-top: 10px; padding-right: 15px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13.5px;">
+              <span style="width: 18px; height: 18px; border: 1.5px solid #64748b; border-radius: 4px; display: inline-block;"></span>
+              <span>( ) صواب</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13.5px;">
+              <span style="width: 18px; height: 18px; border: 1.5px solid #64748b; border-radius: 4px; display: inline-block;"></span>
+              <span>( ) خطأ</span>
+            </div>
+          </div>
+        `;
+      } else {
+        optionsHtml = `
+          <div style="margin-top: 14px; padding-right: 15px;">
+            <div style="font-size: 11.5px; color: #64748b; margin-bottom: 6px; font-weight: bold;">مكان كتابة الإجابة المقالية:</div>
+            <div style="border-bottom: 1.5px dotted #94a3b8; height: 26px;"></div>
+            <div style="border-bottom: 1.5px dotted #94a3b8; height: 26px;"></div>
+            <div style="border-bottom: 1.5px dotted #94a3b8; height: 26px;"></div>
+            <div style="border-bottom: 1.5px dotted #94a3b8; height: 26px;"></div>
+          </div>
+        `;
+      }
+
+      return `
+        <div style="margin-bottom: 22px; padding: 14px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+            <div style="font-size: 14.5px; font-weight: 700; color: #0f172a; line-height: 1.6;">
+              <span style="color: #4338ca; margin-left: 6px;">السؤال (${idx + 1}):</span>
+              ${q.questionText}
+            </div>
+            <div style="font-size: 11px; font-weight: 800; background: #eef2ff; color: #4338ca; padding: 3px 10px; border-radius: 20px; white-space: nowrap;">
+              [ ${q.points || 1} ${q.points === 1 ? 'درجة' : 'درجات'} ]
+            </div>
+          </div>
+          ${optionsHtml}
+        </div>
+      `;
+    })
+    .join('');
+
+  let answerKeyHtml = '';
+  if (includeAnswerKey) {
+    answerKeyHtml = `
+      <div style="margin-top: 35px; padding: 20px; background: #f8fafc; border: 2px dashed #94a3b8; border-radius: 14px; page-break-before: always;">
+        <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #1e293b; font-weight: 800; text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+          🔑 نموذج الإجابة الاسترشادي وتوزيع الدرجات
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr style="background: #e2e8f0;">
+              <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-size: 12px;">رقم السؤال</th>
+              <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-size: 12px;">الإجابة الصحيحة</th>
+              <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-size: 12px;">الشرح والتوضيح</th>
+              <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-size: 12px;">الدرجة</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${questions
+              .map((q, idx) => {
+                let ansText = '';
+                if (q.type === 'mcq' && typeof q.correctAnswer === 'number') {
+                  const letter = arabicLetters[q.correctAnswer] || q.correctAnswer + 1;
+                  ansText = `(${letter}) ${q.options[q.correctAnswer] || ''}`;
+                } else {
+                  ansText = String(q.correctAnswer);
+                }
+                return `
+                  <tr>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold;">${idx + 1}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: 700; color: #16a34a;">${ansText}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; font-size: 11.5px; color: #475569;">${q.explanation || '-'}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold;">${q.points || 1}</td>
+                  </tr>
+                `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  const bodyHtml = `
+    <!-- Exam Header with Student Name & Group -->
+    <div style="background: #f1f5f9; padding: 14px 18px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #cbd5e1; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; font-size: 13px;">
+      <div><strong>اسم الطالب / الطالبة:</strong> ............................................................</div>
+      <div><strong>المجموعة:</strong> ${groupName || 'عام'}</div>
+      <div><strong>الدرجة الكلية:</strong> ( / ${totalPoints})</div>
+    </div>
+
+    <!-- Exam Sub-bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 13px; color: #475569;">
+      <span><strong>المادة:</strong> ${teacher.subject}</span>
+      <span><strong>عدد الأسئلة:</strong> ${questions.length} أسئلة</span>
+      <span><strong>زمن الإجابة المقترح:</strong> ${Math.max(20, questions.length * 3)} دقيقة</span>
+    </div>
+
+    <!-- Questions -->
+    <div>
+      ${questionsHtml}
+    </div>
+
+    ${answerKeyHtml}
+  `;
+
+  printHtmlReport(examTitle.replace(/\s+/g, '_'), bodyHtml, teacher);
+}
+

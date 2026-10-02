@@ -16,6 +16,8 @@ import {
   Exam,
   StudentExamScore,
   ResourceSubmission,
+  BankQuestion,
+  HomeworkStatus,
 } from './types';
 import { StorageService } from './utils/storage';
 import { Navbar, NavTab } from './components/Navbar';
@@ -27,13 +29,16 @@ import { DefaultersView } from './components/DefaultersView';
 import { GroupsView } from './components/GroupsView';
 import { LessonsView } from './components/LessonsView';
 import { ExamsView } from './components/ExamsView';
+import { QuestionBankView } from './components/QuestionBankView';
 import { SettingsView } from './components/SettingsView';
 import { StudentPortalView } from './components/StudentPortalView';
 import { ScannerModal, ScannerMode } from './components/ScannerModal';
 import { StudentCardModal } from './components/StudentCardModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { DatabaseSecurityModal } from './components/DatabaseSecurityModal';
 
-export default function App() {
+function AppContent() {
   // Global States loaded from storage
   const [teacher, setTeacher] = useState<TeacherProfile>(StorageService.getTeacher);
   const [groups, setGroups] = useState<Group[]>(StorageService.getGroups);
@@ -44,7 +49,13 @@ export default function App() {
   const [exams, setExams] = useState<Exam[]>(StorageService.getExams);
   const [examScores, setExamScores] = useState<StudentExamScore[]>(StorageService.getExamScores);
   const [submissions, setSubmissions] = useState<ResourceSubmission[]>(StorageService.getSubmissions);
+  const [questions, setQuestions] = useState<BankQuestion[]>(StorageService.getQuestions);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(StorageService.getDarkMode);
+
+  // Auth & Cloud Sync
+  const { currentUser, syncDataToCloud, fetchDataFromCloud } = useAuth();
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Navigation & Modals
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
@@ -53,6 +64,94 @@ export default function App() {
   const [selectedStudentForCard, setSelectedStudentForCard] = useState<Student | null>(null);
   const [preselectedStudentForPayment, setPreselectedStudentForPayment] = useState<Student | null>(null);
   const [loggedInStudent, setLoggedInStudent] = useState<Student | null>(null);
+
+  // Sync with Cloud SQL when user logs in
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let isMounted = true;
+    const syncWithCloud = async () => {
+      setIsSyncing(true);
+      try {
+        const cloudData = await fetchDataFromCloud();
+        if (!isMounted) return;
+
+        if (cloudData && (cloudData.students?.length > 0 || cloudData.groups?.length > 0)) {
+          if (cloudData.teacherProfile) {
+            setTeacher(cloudData.teacherProfile);
+            StorageService.saveTeacher(cloudData.teacherProfile);
+          }
+          if (cloudData.groups?.length > 0) {
+            setGroups(cloudData.groups);
+            StorageService.saveGroups(cloudData.groups);
+          }
+          if (cloudData.students?.length > 0) {
+            setStudents(cloudData.students);
+            StorageService.saveStudents(cloudData.students);
+          }
+          if (cloudData.attendance?.length > 0) {
+            setAttendance(cloudData.attendance);
+            StorageService.saveAttendance(cloudData.attendance);
+          }
+          if (cloudData.payments?.length > 0) {
+            setPayments(cloudData.payments);
+            StorageService.savePayments(cloudData.payments);
+          }
+          if (cloudData.questions?.length > 0) {
+            setQuestions(cloudData.questions);
+            StorageService.saveQuestions(cloudData.questions);
+          }
+          if (cloudData.exams?.length > 0) {
+            setExams(cloudData.exams);
+            StorageService.saveExams(cloudData.exams);
+          }
+        } else {
+          // Cloud has no records yet; sync current local data to Cloud SQL
+          await syncDataToCloud({
+            teacher,
+            groups,
+            students,
+            attendance,
+            payments,
+            questions,
+            exams,
+            scores: examScores,
+          });
+        }
+      } catch (err) {
+        console.error('Error synchronizing with Cloud SQL:', err);
+      } finally {
+        if (isMounted) setIsSyncing(false);
+      }
+    };
+
+    syncWithCloud();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  const handleManualSync = async () => {
+    if (!currentUser) {
+      setIsSecurityModalOpen(true);
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      await syncDataToCloud({
+        teacher,
+        groups,
+        students,
+        attendance,
+        payments,
+        questions,
+        exams,
+        scores: examScores,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Check URL parameters for student portal access (?student=STU-1001 or ?sid=stu-1)
   useEffect(() => {
@@ -166,9 +265,11 @@ export default function App() {
     studentId: string,
     status: AttendanceStatus,
     note?: string,
+    homeworkStatus?: HomeworkStatus,
+    targetDate?: string,
     method: 'qr' | 'manual' | 'bulk' = 'manual'
   ) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = targetDate || new Date().toISOString().split('T')[0];
     const timeNow = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
     const student = students.find((s) => s.id === studentId);
     if (!student) return;
@@ -184,7 +285,8 @@ export default function App() {
       updated[existingIndex] = {
         ...updated[existingIndex],
         status,
-        note: note || updated[existingIndex].note,
+        note: note !== undefined ? note : updated[existingIndex].note,
+        homeworkStatus: homeworkStatus !== undefined ? homeworkStatus : updated[existingIndex].homeworkStatus,
         time: timeNow,
       };
     } else {
@@ -195,6 +297,7 @@ export default function App() {
         date: today,
         time: timeNow,
         status,
+        homeworkStatus: homeworkStatus || 'completed',
         note,
         method,
       };
@@ -203,6 +306,41 @@ export default function App() {
 
     setAttendance(updated);
     StorageService.saveAttendance(updated);
+  };
+
+  const handleAddQuestion = (data: Omit<BankQuestion, 'id' | 'createdAt'>) => {
+    const newQuestion: BankQuestion = {
+      ...data,
+      id: `q-${Date.now()}`,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    const updated = [newQuestion, ...questions];
+    setQuestions(updated);
+    StorageService.saveQuestions(updated);
+  };
+
+  const handleUpdateQuestion = (updatedQuestion: BankQuestion) => {
+    const updated = questions.map((q) => (q.id === updatedQuestion.id ? updatedQuestion : q));
+    setQuestions(updated);
+    StorageService.saveQuestions(updated);
+  };
+
+  const handleDeleteQuestion = (id: string) => {
+    const updated = questions.filter((q) => q.id !== id);
+    setQuestions(updated);
+    StorageService.saveQuestions(updated);
+  };
+
+  const handleCreateExamFromBank = (newExamData: Omit<Exam, 'id' | 'createdAt'>) => {
+    const newExam: Exam = {
+      ...newExamData,
+      id: `exam-${Date.now()}`,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    const updated = [newExam, ...exams];
+    setExams(updated);
+    StorageService.saveExams(updated);
+    setCurrentTab('exams');
   };
 
   const handleRecordPayment = (
@@ -363,10 +501,12 @@ export default function App() {
         isDarkMode={isDarkMode}
         onToggleDarkMode={handleToggleDarkMode}
         onOpenScanner={() => handleOpenScannerWithMode('attendance')}
+        onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
         teacher={teacher}
         totalStudents={students.length}
         totalGroups={groups.length}
         totalExams={exams.length}
+        totalQuestions={questions.length}
         unpaidCount={unpaidStudentsCount}
       />
 
@@ -444,6 +584,18 @@ export default function App() {
           />
         )}
 
+        {currentTab === 'question-bank' && (
+          <QuestionBankView
+            questions={questions}
+            groups={groups}
+            teacher={teacher}
+            onAddQuestion={handleAddQuestion}
+            onUpdateQuestion={handleUpdateQuestion}
+            onDeleteQuestion={handleDeleteQuestion}
+            onCreateExamFromBank={handleCreateExamFromBank}
+          />
+        )}
+
         {currentTab === 'defaulters' && (
           <DefaultersView
             students={students}
@@ -499,7 +651,9 @@ export default function App() {
         groups={groups}
         teacher={teacher}
         attendanceRecords={attendance}
-        onRecordAttendance={(id, status, note) => handleRecordAttendance(id, status, note, 'qr')}
+        onRecordAttendance={(id, status, note, hw) =>
+          handleRecordAttendance(id, status, note, hw, undefined, 'qr')
+        }
         onRecordPayment={handleRecordPayment}
         initialMode={scannerMode}
       />
@@ -517,11 +671,19 @@ export default function App() {
         }}
       />
 
+      {/* Cloud SQL Database Security & Account Modal */}
+      <DatabaseSecurityModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+        onManualSync={handleManualSync}
+        isSyncing={isSyncing}
+      />
+
       {/* Footer with PWA Install Button and System Info */}
       <footer className="no-print mt-auto border-t border-slate-200 dark:border-slate-800/80 py-4 px-4 bg-white/50 dark:bg-slate-900/50 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-right">
           <p>
-            نظام المعلم الذكي • يعمل بدون إنترنت (Offline Mode) بنسبة 100% • ماسح وتوليد باركود QR • إشعارات واتساب
+            نظام المعلم الذكي • متصل بقاعدة بيانات سحابية مشفرة (PostgreSQL) • يعمل بدون إنترنت (Offline Mode) • ماسح وتوليد باركود QR • إشعارات واتساب
           </p>
           <div className="flex items-center gap-2">
             <PWAInstallButton />
@@ -529,5 +691,13 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

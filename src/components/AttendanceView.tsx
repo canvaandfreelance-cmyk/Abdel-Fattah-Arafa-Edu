@@ -5,6 +5,7 @@ import {
   TeacherProfile,
   AttendanceRecord,
   AttendanceStatus,
+  HomeworkStatus,
 } from '../types';
 import {
   CalendarCheck,
@@ -21,6 +22,10 @@ import {
   CheckCheck,
   Filter,
   Printer,
+  BookCheck,
+  Check,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 import { generateAttendanceWhatsAppUrl } from '../utils/whatsapp';
 import { exportAttendanceToPDF } from '../utils/pdfExport';
@@ -32,7 +37,13 @@ interface AttendanceViewProps {
   groups: Group[];
   teacher: TeacherProfile;
   attendanceRecords: AttendanceRecord[];
-  onRecordAttendance: (studentId: string, status: AttendanceStatus, note?: string) => void;
+  onRecordAttendance: (
+    studentId: string,
+    status: AttendanceStatus,
+    note?: string,
+    homeworkStatus?: HomeworkStatus,
+    date?: string
+  ) => void;
   onOpenScanner: () => void;
   onShowStudentCard: (student: Student) => void;
 }
@@ -92,10 +103,25 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
   const attendedTotal = presentCount + lateCount;
   const attendanceRate = totalCount > 0 ? Math.round((attendedTotal / totalCount) * 100) : 0;
 
+  // Homework Metrics
+  const hwCompletedCount = eligibleStudents.filter((s) => {
+    const rec = dateRecords.find((r) => r.studentId === s.id);
+    return rec?.homeworkStatus === 'completed';
+  }).length;
+  const hwPartialCount = eligibleStudents.filter((s) => {
+    const rec = dateRecords.find((r) => r.studentId === s.id);
+    return rec?.homeworkStatus === 'partial';
+  }).length;
+  const hwIncompleteCount = eligibleStudents.filter((s) => {
+    const rec = dateRecords.find((r) => r.studentId === s.id);
+    return rec?.homeworkStatus === 'incomplete';
+  }).length;
+
   // Mark all currently filtered students as present
   const handleConfirmMarkAll = () => {
     eligibleStudents.forEach((s) => {
-      onRecordAttendance(s.id, 'present');
+      const rec = dateRecords.find((r) => r.studentId === s.id);
+      onRecordAttendance(s.id, 'present', rec?.note, rec?.homeworkStatus || 'completed', selectedDate);
     });
     confetti({
       particleCount: 50,
@@ -190,6 +216,28 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
         <div className="bg-indigo-50 dark:bg-indigo-950/30 p-3.5 rounded-2xl border border-indigo-200 dark:border-indigo-800 shadow-sm">
           <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400 block">نسبة الحضور</span>
           <span className="text-xl font-black text-indigo-800 dark:text-indigo-200">{attendanceRate}%</span>
+        </div>
+      </div>
+
+      {/* Homework Tracking Summary Banner */}
+      <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200">
+          <BookCheck className="w-4 h-4 text-indigo-600" />
+          <span>متابعة الواجبات المدرسية للحصة:</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 font-bold">
+          <span className="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+            <Check className="w-3 h-3 text-emerald-600" />
+            <span>حل كامل: {hwCompletedCount}</span>
+          </span>
+          <span className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3 text-amber-600" />
+            <span>حل جزئي: {hwPartialCount}</span>
+          </span>
+          <span className="px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 flex items-center gap-1">
+            <X className="w-3 h-3 text-rose-600" />
+            <span>لم يحل: {hwIncompleteCount}</span>
+          </span>
         </div>
       </div>
 
@@ -298,61 +346,170 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Attendance Status Buttons */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Present */}
-                    <button
-                      onClick={() => onRecordAttendance(student.id, 'present')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                        currentStatus === 'present'
-                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 scale-105'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>حاضر</span>
-                    </button>
+                  {/* Attendance & Homework Status Controls */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    {/* Attendance Status Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Present */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            'present',
+                            record?.note,
+                            record?.homeworkStatus || 'completed',
+                            selectedDate
+                          )
+                        }
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          currentStatus === 'present'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 scale-105'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>حاضر</span>
+                      </button>
 
-                    {/* Late */}
-                    <button
-                      onClick={() => onRecordAttendance(student.id, 'late')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                        currentStatus === 'late'
-                          ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 scale-105'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-600'
-                      }`}
-                    >
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>متأخر</span>
-                    </button>
+                      {/* Late */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            'late',
+                            record?.note,
+                            record?.homeworkStatus,
+                            selectedDate
+                          )
+                        }
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          currentStatus === 'late'
+                            ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 scale-105'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-600'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>متأخر</span>
+                      </button>
 
-                    {/* Excused */}
-                    <button
-                      onClick={() => onRecordAttendance(student.id, 'excused')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                        currentStatus === 'excused'
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 scale-105'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600'
-                      }`}
-                    >
-                      <HelpCircle className="w-3.5 h-3.5" />
-                      <span>بعذر</span>
-                    </button>
+                      {/* Excused */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            'excused',
+                            record?.note,
+                            record?.homeworkStatus,
+                            selectedDate
+                          )
+                        }
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          currentStatus === 'excused'
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 scale-105'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600'
+                        }`}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        <span>بعذر</span>
+                      </button>
 
-                    {/* Absent */}
-                    <button
-                      onClick={() => onRecordAttendance(student.id, 'absent')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                        currentStatus === 'absent'
-                          ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 scale-105'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600'
-                      }`}
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      <span>غائب</span>
-                    </button>
+                      {/* Absent */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            'absent',
+                            record?.note,
+                            'incomplete',
+                            selectedDate
+                          )
+                        }
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          currentStatus === 'absent'
+                            ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 scale-105'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600'
+                        }`}
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>غائب</span>
+                      </button>
+                    </div>
 
-                    {/* WhatsApp Guardian Notification */}
+                    {/* Quick Homework Status Selector */}
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                      <span className="text-[10px] font-bold text-slate-400 px-1.5 flex items-center gap-1">
+                        <BookCheck className="w-3 h-3 text-indigo-500" />
+                        <span>الواجب:</span>
+                      </span>
+
+                      {/* Completed */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            currentStatus || 'present',
+                            record?.note,
+                            'completed',
+                            selectedDate
+                          )
+                        }
+                        title="حل الواجب بالكامل ومتقن"
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-0.5 ${
+                          record?.homeworkStatus === 'completed'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-600'
+                        }`}
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>كامل</span>
+                      </button>
+
+                      {/* Partial */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            currentStatus || 'present',
+                            record?.note,
+                            'partial',
+                            selectedDate
+                          )
+                        }
+                        title="حل جزء من الواجب"
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-0.5 ${
+                          record?.homeworkStatus === 'partial'
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-600'
+                        }`}
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>جزئي</span>
+                      </button>
+
+                      {/* Incomplete */}
+                      <button
+                        onClick={() =>
+                          onRecordAttendance(
+                            student.id,
+                            currentStatus || 'present',
+                            record?.note,
+                            'incomplete',
+                            selectedDate
+                          )
+                        }
+                        title="لم يحل الواجب"
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-0.5 ${
+                          record?.homeworkStatus === 'incomplete'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600'
+                        }`}
+                      >
+                        <X className="w-3 h-3" />
+                        <span>لم يحل</span>
+                      </button>
+                    </div>
+
+                    {/* WhatsApp Guardian Notification with Homework Status included */}
                     {student.guardianPhone && (
                       <a
                         href={generateAttendanceWhatsAppUrl(
@@ -361,12 +518,13 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
                           group,
                           currentStatus || 'present',
                           selectedDate,
-                          record?.time || new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                          record?.time || new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+                          record?.homeworkStatus
                         )}
                         target="_blank"
                         rel="noreferrer"
                         className="p-2 bg-emerald-50 dark:bg-slate-800 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl text-xs transition-colors"
-                        title="إرسال إفادة الحضور/الغياب لولي الأمر عبر واتساب"
+                        title="إرسال إفادة الحضور ومتابعة الواجب لولي الأمر عبر واتساب"
                       >
                         <Send className="w-3.5 h-3.5" />
                       </a>

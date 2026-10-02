@@ -17,6 +17,8 @@ import {
   Sparkles,
   FileCheck2,
   AlertCircle,
+  HelpCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { TeacherProfile } from '../types';
 
@@ -26,6 +28,7 @@ export type NavTab =
   | 'students'
   | 'groups'
   | 'exams'
+  | 'question-bank'
   | 'payments'
   | 'lessons'
   | 'settings'
@@ -37,10 +40,12 @@ interface NavbarProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onOpenScanner: () => void;
+  onOpenSecurityModal?: () => void;
   teacher: TeacherProfile;
   totalStudents: number;
   totalGroups?: number;
   totalExams?: number;
+  totalQuestions?: number;
   unpaidCount?: number;
 }
 
@@ -50,10 +55,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   isDarkMode,
   onToggleDarkMode,
   onOpenScanner,
+  onOpenSecurityModal,
   teacher,
   totalStudents,
   totalGroups = 0,
   totalExams = 0,
+  totalQuestions = 0,
   unpaidCount = 0,
 }) => {
   const [isMenuDrawerOpen, setIsMenuDrawerOpen] = useState(false);
@@ -65,6 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'students', label: 'الطلاب', icon: <Users className="w-4 h-4" /> },
     { id: 'groups', label: 'المجموعات', icon: <Layers className="w-4 h-4" /> },
     { id: 'exams', label: 'الامتحانات', icon: <FileCheck2 className="w-4 h-4" />, badge: totalExams },
+    { id: 'question-bank', label: 'بنك الأسئلة', icon: <HelpCircle className="w-4 h-4" />, badge: totalQuestions },
     { id: 'payments', label: 'المدفوعات', icon: <CreditCard className="w-4 h-4" /> },
     { id: 'lessons', label: 'الحصص والفيديوهات', icon: <Video className="w-4 h-4" /> },
     { id: 'settings', label: 'لوحة تحكم المعلم', icon: <Settings className="w-4 h-4" /> },
@@ -140,8 +148,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
-            {/* Quick Actions: Menu Drawer + Theme */}
+            {/* Quick Actions: Security + Theme + Menu Drawer */}
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+              {/* Cloud SQL / Security Button */}
+              {onOpenSecurityModal && (
+                <button
+                  onClick={onOpenSecurityModal}
+                  className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors flex items-center gap-1.5 border border-indigo-200/60 dark:border-indigo-800/60"
+                  title="أمان وتشفير قاعدة البيانات السحابية Cloud SQL"
+                  aria-label="Cloud Database & Security"
+                >
+                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                  <span className="hidden xl:inline text-xs font-bold">أمان السحابة</span>
+                </button>
+              )}
+
               {/* Dark Mode Toggle */}
               <button
                 onClick={onToggleDarkMode}

@@ -554,6 +554,104 @@ export const INITIAL_QUESTIONS: BankQuestion[] = [
     points: 2,
     createdAt: '2026-09-24',
   },
+  {
+    id: 'q-7',
+    subject: 'الفيزياء',
+    lesson: 'المحولات الكهربية وتوليد الطاقة',
+    grade: 'الصف الثالث الثانوي',
+    type: 'essay',
+    difficulty: 'medium',
+    questionText: 'علل (سؤال مقالي): يفضل نقل الطاقة الكهربية من محطات التوليد إلى مناطق الاستهلاك تحت جهود كهربية عالية جداً باستخدام محولات رافعة للجهد.',
+    options: [],
+    correctAnswer: 'لأن رفع الجهد الكهربي يؤدي إلى خفض شدة التيار المار في خطوط النقل بنفس النسبة، وبالتالي تقل القدرة والحرارة المفقودة في الأسلاك بدرجة كبيرة لأن القدرة المفقودة تتناسب طردياً مع مربع شدة التيار (P = I² × R).',
+    explanation: 'تطبيق مباشر على علاقة القدرة المفقودة مع مربع شدة التيار وقانون بقاء الطاقة في المحول الكهربي.',
+    points: 3,
+    createdAt: '2026-09-25',
+  },
+  {
+    id: 'q-8',
+    subject: 'الفيزياء',
+    lesson: 'أجهزة القياس الكهربي',
+    grade: 'الصف الثالث الثانوي',
+    type: 'essay',
+    difficulty: 'hard',
+    questionText: 'وضح بالتفصيل (سؤال مقالي): ما الأساس العلمي للجلفانومتر ذي الملف المتحرك؟ وما شرط استقرار المؤشر عند قراءة معينة؟',
+    options: [],
+    correctAnswer: 'الأساس العلمي: عزم الازدواج المغناطيسي المؤثر على ملف قابل للدوران يمر به تيار كهربي موضوع في مجال مغناطيسي منتظم. شرط استقرار المؤشر: عندما يتساوى عزم الازدواج المغناطيسي مع عزم اللي الناشئ في زوج الملفات الزنبركية.',
+    explanation: 'عزم الازدواج وعزم اللي يتساويان في المقدار ويتضادان في الاتجاه فيثبت الملف والمؤشر.',
+    points: 3,
+    createdAt: '2026-09-26',
+  },
+  {
+    id: 'q-9',
+    subject: 'الفيزياء',
+    lesson: 'الظاهرة الكهروضوئية',
+    grade: 'الصف الثالث الثانوي',
+    type: 'true_false',
+    difficulty: 'medium',
+    questionText: 'تزداد طاقة حركة الإلكترونات الضوئية المنبعثة من سطح الفلز بزيادة شدة الضوء الساقط عليه.',
+    options: ['صواب', 'خطأ'],
+    correctAnswer: 'خطأ',
+    explanation: 'طاقة حركة الإلكترونات المنبعثة تتوقف فقط على تردد الضوء الساقط ونوع مادة السطح (دالة الشغل)، بينما زيادة شدة الضوء تزيد من عدد الإلكترونات المنبعثة وليس طاقتها.',
+    points: 1,
+    createdAt: '2026-09-27',
+  },
+  {
+    id: 'q-10',
+    subject: 'الفيزياء',
+    lesson: 'الحث الكهرومغناطيسي وقاعدة لنز',
+    grade: 'الصف الثالث الثانوي',
+    type: 'true_false',
+    difficulty: 'easy',
+    questionText: 'قاعدة لنز تعد تطبيقاً عملياً لمبدأ بقاء الطاقة في الحث الكهرومغناطيسي.',
+    options: ['صواب', 'خطأ'],
+    correctAnswer: 'صواب',
+    explanation: 'ينص مبدأ بقاء الطاقة على أن الشغل المبذول للتغلب على قوى التنافر أو التجاذب المغناطيسي يتحول إلى طاقة كهربية مستحثة.',
+    points: 1,
+    createdAt: '2026-09-28',
+  },
+  {
+    id: 'q-11',
+    subject: 'الفيزياء',
+    lesson: 'المجال المغناطيسي للتيار الكهربي',
+    grade: 'الصف الثالث الثانوي',
+    type: 'true_false',
+    difficulty: 'medium',
+    questionText: 'ينعدم الفيض المغناطيسي الكلي الذي يخترق ملفاً عندما يكون مستوى الملف عمودياً على خطوط الفيض المغناطيسي.',
+    options: ['صواب', 'خطأ'],
+    correctAnswer: 'خطأ',
+    explanation: 'الفيض المغناطيسي Φm = B·A·sinθ، وعندما يكون الملف عمودياً تكون الزاوية 90° وقيمة الفيض عظمى، بينما ينعدم عندما يكون موازياً لمجال الفيض.',
+    points: 1,
+    createdAt: '2026-09-28',
+  },
+  {
+    id: 'q-12',
+    subject: 'الفيزياء',
+    lesson: 'الحث الكهرومغناطيسي والمحولات',
+    grade: 'الصف الثالث الثانوي',
+    type: 'essay',
+    difficulty: 'hard',
+    questionText: 'قارن في جدول منظم (سؤال مقالي): بين المحول الرافع للجهد والمحول الخافض للجهد من حيث: (1) النسبة بين عدد لفات الملف الثانوي والابتدائي، (2) شدة تيار الملف الثانوي مقارنة بالابتدائي، (3) موضع الاستخدام عند محطات التوليد ومناطق التوزيع.',
+    options: [],
+    correctAnswer: 'المحول الرافع للجهد: (Ns > Np) عدد لفات الثانوي أكبر - (Is < Ip) خافض لشدة التيار - يستخدم عند محطات توليد الطاقة الكهربية لتقليل الفقد. المحول الخافض للجهد: (Ns < Np) عدد لفات الثانوي أقل - (Is > Ip) رافع لشدة التيار - يستخدم عند أماكن التوزيع والاستهلاك والمصانع لحماية الأجهزة ومناسبة الجهد.',
+    explanation: 'المحول الرافع للجهد خافض للتيار والعكس صحيح، طبقاً لقانون بقاء الطاقة (Vs/Vp = Ns/Np = Ip/Is).',
+    points: 4,
+    createdAt: '2026-09-29',
+  },
+  {
+    id: 'q-13',
+    subject: 'الفيزياء',
+    lesson: 'الفيزياء الحديثة وليزر الهيليوم نيون',
+    grade: 'الصف الثالث الثانوي',
+    type: 'essay',
+    difficulty: 'medium',
+    questionText: 'ما الشروط الواجب توافرها لإنتاج أشعة الليزر في أي جهاز ليزر؟ مع ذكر وظيفة التجويف الرنيني باختصار.',
+    options: [],
+    correctAnswer: 'الشروط الواجب توافرها: (1) وجود وسط مادي فعال يحتوي على ذرات مناسبة. (2) توفير مصدر مناسب للطاقة لإثارة ذرات الوسط والوصول لوضع الإسكان المعكوس (Inversion). (3) وجود تجويف رنيني حاوٍ للمادة الفعالة. وظيفة التجويف الرنيني: يعمل كوعاء حاوٍ ومضخم لشعاع الليزر من خلال الانعكاسات المتتالية بين المرآتين العاكسة وشبه المنفذة.',
+    explanation: 'الإسكان المعكوس والتضخيم بواسطة التجويف الرنيني هما الركيزتان الأساسيتان في إنتاج حزم فوتونات الليزر المترابطة.',
+    points: 3,
+    createdAt: '2026-09-29',
+  },
 ];
 
 export const StorageService = {
@@ -584,7 +682,20 @@ export const StorageService = {
   getSubmissions: () => getFromStorage<ResourceSubmission[]>(STORAGE_KEYS.SUBMISSIONS, INITIAL_SUBMISSIONS),
   saveSubmissions: (data: ResourceSubmission[]) => saveToStorage(STORAGE_KEYS.SUBMISSIONS, data),
 
-  getQuestions: () => getFromStorage<BankQuestion[]>(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS),
+  getQuestions: () => {
+    const data = getFromStorage<BankQuestion[]>(STORAGE_KEYS.QUESTIONS, INITIAL_QUESTIONS);
+    if (!data || data.length === 0) {
+      return INITIAL_QUESTIONS;
+    }
+    const existingIds = new Set(data.map((q) => q.id));
+    const missing = INITIAL_QUESTIONS.filter((q) => !existingIds.has(q.id));
+    if (missing.length > 0) {
+      const merged = [...data, ...missing];
+      saveToStorage(STORAGE_KEYS.QUESTIONS, merged);
+      return merged;
+    }
+    return data;
+  },
   saveQuestions: (data: BankQuestion[]) => saveToStorage(STORAGE_KEYS.QUESTIONS, data),
 
   getDarkMode: () => {
