@@ -21,6 +21,7 @@ import {
   AlertCircle,
   X,
   Wallet,
+  Trash2,
 } from 'lucide-react';
 import { generatePaymentReceiptWhatsAppUrl, generatePaymentReminderWhatsAppUrl } from '../utils/whatsapp';
 import { exportPaymentsToPDF } from '../utils/pdfExport';
@@ -40,6 +41,7 @@ interface PaymentsViewProps {
     notes?: string,
     monthCovered?: string
   ) => PaymentRecord | void;
+  onDeletePayment?: (id: string) => void;
   onOpenScanner: () => void;
   preselectedStudent?: Student | null;
   onClearPreselectedStudent?: () => void;
@@ -52,6 +54,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   teacher,
   payments,
   onRecordPayment,
+  onDeletePayment,
   onOpenScanner,
   preselectedStudent,
   onClearPreselectedStudent,
@@ -378,27 +381,42 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                           {record.date} • {record.time}
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          {student?.guardianPhone && (
-                            <a
-                              href={generatePaymentReceiptWhatsAppUrl(
-                                student,
-                                teacher,
-                                group,
-                                record.amount,
-                                teacher.currency,
-                                record.receiptNumber,
-                                record.type,
-                                record.monthCovered
-                              )}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-bold transition-all"
-                              title="إرسال إيصال السداد على واتساب ولي الأمر"
-                            >
-                              <Send className="w-3 h-3" />
-                              <span>إرسال إيصال</span>
-                            </a>
-                          )}
+                          <div className="flex items-center justify-center gap-1.5">
+                            {student?.guardianPhone && (
+                              <a
+                                href={generatePaymentReceiptWhatsAppUrl(
+                                  student,
+                                  teacher,
+                                  group,
+                                  record.amount,
+                                  teacher.currency,
+                                  record.receiptNumber,
+                                  record.type,
+                                  record.monthCovered
+                                )}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-bold transition-all"
+                                title="إرسال إيصال السداد على واتساب ولي الأمر"
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>إرسال إيصال</span>
+                              </a>
+                            )}
+                            {onDeletePayment && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا الإيصال وسجل الدفع؟')) {
+                                    onDeletePayment(record.id);
+                                  }
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                title="حذف هذا السجل المالي"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

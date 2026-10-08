@@ -18,7 +18,9 @@ import {
   AlertCircle,
   Send,
   Printer,
+  Download,
 } from 'lucide-react';
+import { StorageService } from '../utils/storage';
 import {
   Student,
   Group,
@@ -86,6 +88,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const unpaidStudentsThisMonth = students.filter((s) => !paidStudentIdsThisMonth.has(s.id));
 
+  // Check if last backup was more than 14 days ago or never
+  const lastBackupStr = StorageService.getLastBackupDate();
+  let showBackupReminder = false;
+  let daysSinceBackup = 0;
+  if (!lastBackupStr) {
+    showBackupReminder = true;
+  } else {
+    const lastDate = new Date(lastBackupStr);
+    const diffTime = Math.abs(Date.now() - lastDate.getTime());
+    daysSinceBackup = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (daysSinceBackup >= 14) {
+      showBackupReminder = true;
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner (Settings and QR buttons removed per request) */}
@@ -108,6 +125,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Gentle Backup Reminder Banner (if last backup > 14 days or never) */}
+      {showBackupReminder && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+              <Download className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs sm:text-sm">
+                تذكير بأمان البيانات: لم تقم بتصدير نسخة احتياطية منذ {daysSinceBackup > 0 ? `${daysSinceBackup} يوماً` : 'فترة'}
+              </h4>
+              <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                لحفظ سجلاتك وملفات الطلاب في مكان آمن على جهازك، يُنصح بتصدير نسخة احتياطية دورياً.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('settings')}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition-colors shadow-xs"
+          >
+            تصدير الآن
+          </button>
+        </div>
+      )}
 
       {/* Stats KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

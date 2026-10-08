@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Student, Group, TeacherProfile } from '../types';
-import { Printer, Download, Share2, X, Sparkles, Check, Phone, User, Award, ExternalLink } from 'lucide-react';
+import { Printer, Download, Share2, X, Sparkles, Check, Phone, User, Award, ExternalLink, RefreshCw } from 'lucide-react';
 import { cleanPhoneNumber } from '../utils/whatsapp';
 import { GroupIconBadge } from './GroupIconBadge';
 
@@ -12,6 +12,7 @@ interface StudentCardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPortalForStudent?: (student: Student) => void;
+  onRegeneratePortalToken?: (studentId: string) => void;
 }
 
 export const StudentCardModal: React.FC<StudentCardModalProps> = ({
@@ -21,6 +22,7 @@ export const StudentCardModal: React.FC<StudentCardModalProps> = ({
   isOpen,
   onClose,
   onOpenPortalForStudent,
+  onRegeneratePortalToken,
 }) => {
   const [qrUrl, setQrUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -28,11 +30,9 @@ export const StudentCardModal: React.FC<StudentCardModalProps> = ({
 
   useEffect(() => {
     if (student) {
-      // The QR code contains both the scanner prefix and the web portal URL
-      // If scanned with regular phone camera: opens student web portal!
-      // If scanned with teacher app scanner: reads student ID for instant attendance!
+      // The QR code contains the secure student web portal URL with portalToken (?p=<token>)
       const currentOrigin = window.location.origin;
-      const portalUrl = `${currentOrigin}/?student=${encodeURIComponent(student.code)}&sid=${encodeURIComponent(student.id)}`;
+      const portalUrl = `${currentOrigin}/?p=${encodeURIComponent(student.portalToken || '')}`;
       
       QRCode.toDataURL(portalUrl, {
         width: 320,
@@ -46,7 +46,7 @@ export const StudentCardModal: React.FC<StudentCardModalProps> = ({
         .then((url) => setQrUrl(url))
         .catch((err) => console.error('QR Gen error', err));
     }
-  }, [student]);
+  }, [student, student?.portalToken]);
 
   if (!isOpen || !student) return null;
 
@@ -64,7 +64,7 @@ export const StudentCardModal: React.FC<StudentCardModalProps> = ({
 
   const handleSendWhatsApp = () => {
     const teacherTitle = teacher.gender === 'female' ? 'الأستاذة' : 'الأستاذ';
-    const portalUrl = `${window.location.origin}/?student=${encodeURIComponent(student.code)}&sid=${encodeURIComponent(student.id)}`;
+    const portalUrl = `${window.location.origin}/?p=${encodeURIComponent(student.portalToken || '')}`;
 
     const message = `السلام عليكم ورحمة الله وبركاته 🌹
 مرحباً بكم ولي أمر الطالب: *${student.name}*
@@ -73,10 +73,10 @@ export const StudentCardModal: React.FC<StudentCardModalProps> = ({
 المادة: *${teacher.subject}*
 المعلم: ${teacherTitle} / ${teacher.name}
 
-📲 *رابط البوابة التعليمية الخاصة بالطالب:*
+📲 *رابط البوابة التعليمية الآمنة الخاصة بالطالب:*
 ${portalUrl}
 
-(عبر هذا الرابط أو بمسح كارت الـ QR، يمكن للطالب الدخول لبوابته الخاصة لمشاهدة حصص وفيديوهات الشرح، وتحميل مذكرات التدريب والامتحانات وحلها ليتم تصحيحها تلقائياً بالدرجات وتوضيح الإجابات الصحيحة، مع متابعة سجل الحضور والمصروفات).
+(عبر هذا الرابط المشفر أو بمسح كارت الـ QR، يمكن للطالب الدخول لبوابته الخاصة لمشاهدة حصص وفيديوهات الشرح، وتحميل مذكرات التدريب والامتحانات وحلها ليتم تصحيحها تلقائياً بالدرجات وتوضيح الإجابات الصحيحة، مع متابعة سجل الحضور والمصروفات).
 
 مع تمنياتنا بدوام التميز والنجاح ✨`;
 
@@ -91,7 +91,7 @@ ${portalUrl}
   };
 
   const handleCopyPortalUrl = () => {
-    const portalUrl = `${window.location.origin}/?student=${encodeURIComponent(student.code)}&sid=${encodeURIComponent(student.id)}`;
+    const portalUrl = `${window.location.origin}/?p=${encodeURIComponent(student.portalToken || '')}`;
     navigator.clipboard.writeText(portalUrl);
     setCopiedPortalUrl(true);
     setTimeout(() => setCopiedPortalUrl(false), 2000);
@@ -225,6 +225,16 @@ ${portalUrl}
               {copiedPortalUrl ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <ExternalLink className="w-3.5 h-3.5" />}
               <span>{copiedPortalUrl ? 'تم نسخ الرابط!' : 'رابط صفحة الطالب'}</span>
             </button>
+            {onRegeneratePortalToken && (
+              <button
+                onClick={() => onRegeneratePortalToken(student.id)}
+                className="flex items-center gap-1 px-2.5 py-2 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-medium transition-colors border border-amber-200 dark:border-amber-800"
+                title="توليد رمز أمان ورابط جديد في حال تسريب الرابط القديم"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                <span>إعادة توليد الرابط</span>
+              </button>
+            )}
             {onOpenPortalForStudent && (
               <button
                 onClick={() => {

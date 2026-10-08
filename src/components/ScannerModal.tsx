@@ -217,7 +217,29 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
 
   const parseCode = (raw: string): { studentId?: string; code?: string } => {
     const trimmed = raw.trim();
-    // 1. Check if URL containing parameters (e.g., student portal QR)
+    // 1. Check if URL containing parameters (e.g., student portal QR ?p=...)
+    if (trimmed.includes('?') && trimmed.includes('p=')) {
+      try {
+        const url = new URL(trimmed, window.location.origin);
+        const token = url.searchParams.get('p');
+        if (token) {
+          const found = students.find((s) => s.portalToken === token);
+          if (found) {
+            return { studentId: found.id, code: found.code };
+          }
+        }
+      } catch {
+        const matchP = trimmed.match(/[?&]p=([^&#]+)/);
+        if (matchP) {
+          const token = decodeURIComponent(matchP[1]);
+          const found = students.find((s) => s.portalToken === token);
+          if (found) {
+            return { studentId: found.id, code: found.code };
+          }
+        }
+      }
+    }
+
     if (trimmed.includes('?') && (trimmed.includes('student=') || trimmed.includes('sid='))) {
       try {
         const url = new URL(trimmed, window.location.origin);

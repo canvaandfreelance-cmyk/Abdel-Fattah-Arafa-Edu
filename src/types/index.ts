@@ -51,6 +51,7 @@ export interface Group {
 export interface Student {
   id: string; // unique internal id
   code: string; // visible unique code, e.g. "STU-1001"
+  portalToken?: string; // secure unguessable portal token for ?p=<token>
   name: string;
   gender: Gender;
   groupId: string;
@@ -61,6 +62,16 @@ export interface Student {
   enrollmentDate: string;
   notes?: string;
   avatarColor?: string;
+}
+
+export interface DeletedIdsPayload {
+  groups?: string[];
+  students?: string[];
+  attendance?: string[];
+  payments?: string[];
+  questions?: string[];
+  exams?: string[];
+  scores?: string[];
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';

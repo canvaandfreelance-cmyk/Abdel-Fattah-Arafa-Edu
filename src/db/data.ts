@@ -10,7 +10,7 @@ import {
   exams,
   studentExamScores,
 } from './schema.ts';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export async function getUserFullData(userId: number) {
   try {
@@ -100,6 +100,122 @@ export async function saveUserTeacherProfile(userId: number, profileData: any) {
 
 export async function syncUserData(userId: number, payload: any) {
   try {
+    // 0. Handle Deletions (Cascading for groups and students)
+    if (payload.deletedIds) {
+      const {
+        groups: delGroups,
+        students: delStudents,
+        attendance: delAttendance,
+        payments: delPayments,
+        questions: delQuestions,
+        exams: delExams,
+        scores: delScores,
+      } = payload.deletedIds;
+
+      // Deleting scores
+      if (Array.isArray(delScores) && delScores.length > 0) {
+        await db
+          .delete(studentExamScores)
+          .where(and(eq(studentExamScores.userId, userId), inArray(studentExamScores.id, delScores)));
+      }
+
+      // Deleting exams (and cascade related scores)
+      if (Array.isArray(delExams) && delExams.length > 0) {
+        await db
+          .delete(studentExamScores)
+          .where(and(eq(studentExamScores.userId, userId), inArray(studentExamScores.examId, delExams)));
+        await db
+          .delete(exams)
+          .where(and(eq(exams.userId, userId), inArray(exams.id, delExams)));
+      }
+
+      // Deleting questions
+      if (Array.isArray(delQuestions) && delQuestions.length > 0) {
+        await db
+          .delete(bankQuestions)
+          .where(and(eq(bankQuestions.userId, userId), inArray(bankQuestions.id, delQuestions)));
+      }
+
+      // Deleting payments
+      if (Array.isArray(delPayments) && delPayments.length > 0) {
+        await db
+          .delete(paymentRecords)
+          .where(and(eq(paymentRecords.userId, userId), inArray(paymentRecords.id, delPayments)));
+      }
+
+      // Deleting attendance
+      if (Array.isArray(delAttendance) && delAttendance.length > 0) {
+        await db
+          .delete(attendanceRecords)
+          .where(and(eq(attendanceRecords.userId, userId), inArray(attendanceRecords.id, delAttendance)));
+      }
+
+      // Deleting students (Cascade: delete related attendance, payments, scores)
+      if (Array.isArray(delStudents) && delStudents.length > 0) {
+        await db
+          .delete(attendanceRecords)
+          .where(and(eq(attendanceRecords.userId, userId), inArray(attendanceRecords.studentId, delStudents)));
+        await db
+          .delete(paymentRecords)
+          .where(and(eq(paymentRecords.userId, userId), inArray(paymentRecords.studentId, delStudents)));
+        await db
+          .delete(studentExamScores)
+          .where(and(eq(studentExamScores.userId, userId), inArray(studentExamScores.studentId, delStudents)));
+        await db
+          .delete(students)
+          .where(and(eq(students.userId, userId), inArray(students.id, delStudents)));
+      }
+
+      // Deleting groups (Cascade: delete all students in groups + their attendance, payments, exams, scores)
+      if (Array.isArray(delGroups) && delGroups.length > 0) {
+        const studentsInGroups = await db
+          .select({ id: students.id })
+          .from(students)
+          .where(and(eq(students.userId, userId), inArray(students.groupId, delGroups)));
+        const groupStudentIds = studentsInGroups.map((s) => s.id);
+
+        if (groupStudentIds.length > 0) {
+          await db
+            .delete(attendanceRecords)
+            .where(and(eq(attendanceRecords.userId, userId), inArray(attendanceRecords.studentId, groupStudentIds)));
+          await db
+            .delete(paymentRecords)
+            .where(and(eq(paymentRecords.userId, userId), inArray(paymentRecords.studentId, groupStudentIds)));
+          await db
+            .delete(studentExamScores)
+            .where(and(eq(studentExamScores.userId, userId), inArray(studentExamScores.studentId, groupStudentIds)));
+          await db
+            .delete(students)
+            .where(and(eq(students.userId, userId), inArray(students.id, groupStudentIds)));
+        }
+
+        await db
+          .delete(attendanceRecords)
+          .where(and(eq(attendanceRecords.userId, userId), inArray(attendanceRecords.groupId, delGroups)));
+        await db
+          .delete(paymentRecords)
+          .where(and(eq(paymentRecords.userId, userId), inArray(paymentRecords.groupId, delGroups)));
+
+        const examsInGroups = await db
+          .select({ id: exams.id })
+          .from(exams)
+          .where(and(eq(exams.userId, userId), inArray(exams.groupId, delGroups)));
+        const groupExamIds = examsInGroups.map((e) => e.id);
+        if (groupExamIds.length > 0) {
+          await db
+            .delete(studentExamScores)
+            .where(and(eq(studentExamScores.userId, userId), inArray(studentExamScores.examId, groupExamIds)));
+          await db
+            .delete(exams)
+            .where(and(eq(exams.userId, userId), inArray(exams.id, groupExamIds)));
+        }
+
+        await db
+          .delete(groups)
+          .where(and(eq(groups.userId, userId), inArray(groups.id, delGroups)));
+      }
+    }
+
     // 1. Teacher profile
     if (payload.teacher) {
       await saveUserTeacherProfile(userId, payload.teacher);
@@ -152,6 +268,7 @@ export async function syncUserData(userId: number, payload: any) {
             id: s.id,
             userId,
             code: s.code,
+            portalToken: s.portalToken || null,
             name: s.name,
             gender: s.gender || 'male',
             groupId: s.groupId,
@@ -167,6 +284,7 @@ export async function syncUserData(userId: number, payload: any) {
             target: students.id,
             set: {
               code: s.code,
+              portalToken: s.portalToken || null,
               name: s.name,
               gender: s.gender || 'male',
               groupId: s.groupId,

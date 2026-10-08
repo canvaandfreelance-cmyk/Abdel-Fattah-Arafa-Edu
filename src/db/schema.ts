@@ -56,6 +56,7 @@ export const students = pgTable('students', {
     .references(() => users.id)
     .notNull(),
   code: text('code').notNull(),
+  portalToken: text('portal_token'),
   name: text('name').notNull(),
   gender: text('gender').default('male'),
   groupId: text('group_id').notNull(),

@@ -9,7 +9,18 @@ import {
   Exam,
   StudentExamScore,
   BankQuestion,
+  DeletedIdsPayload,
 } from '../types';
+
+export function generatePortalToken(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    const p1 = crypto.randomUUID().replace(/-/g, '');
+    const p2 = crypto.randomUUID().replace(/-/g, '');
+    return `${p1}${p2}`;
+  }
+  const rand = () => Math.random().toString(36).substring(2);
+  return `${rand()}${rand()}${Date.now().toString(36)}${rand()}`;
+}
 
 const STORAGE_KEYS = {
   TEACHER: 'teacher_app_profile',
@@ -23,6 +34,8 @@ const STORAGE_KEYS = {
   EXAM_SCORES: 'teacher_app_exam_scores',
   SUBMISSIONS: 'teacher_app_submissions',
   QUESTIONS: 'teacher_app_questions',
+  PENDING_DELETIONS: 'teacher_app_pending_deletions',
+  LAST_BACKUP_DATE: 'teacher_app_last_backup_date',
 };
 
 export const INITIAL_TEACHER: TeacherProfile = {
@@ -661,8 +674,29 @@ export const StorageService = {
   getGroups: () => getFromStorage<Group[]>(STORAGE_KEYS.GROUPS, INITIAL_GROUPS),
   saveGroups: (data: Group[]) => saveToStorage(STORAGE_KEYS.GROUPS, data),
 
-  getStudents: () => getFromStorage<Student[]>(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS),
-  saveStudents: (data: Student[]) => saveToStorage(STORAGE_KEYS.STUDENTS, data),
+  getStudents: () => {
+    const list = getFromStorage<Student[]>(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
+    let updated = false;
+    const withTokens = list.map((s) => {
+      if (!s.portalToken) {
+        updated = true;
+        return { ...s, portalToken: generatePortalToken() };
+      }
+      return s;
+    });
+    if (updated) {
+      saveToStorage(STORAGE_KEYS.STUDENTS, withTokens);
+    }
+    return withTokens;
+  },
+  saveStudents: (data: Student[]) => {
+    // Ensure all saved students have a portalToken
+    const withTokens = data.map((s) => ({
+      ...s,
+      portalToken: s.portalToken || generatePortalToken(),
+    }));
+    saveToStorage(STORAGE_KEYS.STUDENTS, withTokens);
+  },
 
   getAttendance: () => getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, INITIAL_ATTENDANCE),
   saveAttendance: (data: AttendanceRecord[]) => saveToStorage(STORAGE_KEYS.ATTENDANCE, data),
@@ -698,6 +732,67 @@ export const StorageService = {
   },
   saveQuestions: (data: BankQuestion[]) => saveToStorage(STORAGE_KEYS.QUESTIONS, data),
 
+  // Pending deletions tracking for offline sync
+  getPendingDeletions: (): DeletedIdsPayload => {
+    return getFromStorage<DeletedIdsPayload>(STORAGE_KEYS.PENDING_DELETIONS, {});
+  },
+
+  addPendingDeletions: (updates: DeletedIdsPayload) => {
+    const current = StorageService.getPendingDeletions();
+    const merged: DeletedIdsPayload = {
+      groups: Array.from(new Set([...(current.groups || []), ...(updates.groups || [])])),
+      students: Array.from(new Set([...(current.students || []), ...(updates.students || [])])),
+      attendance: Array.from(new Set([...(current.attendance || []), ...(updates.attendance || [])])),
+      payments: Array.from(new Set([...(current.payments || []), ...(updates.payments || [])])),
+      questions: Array.from(new Set([...(current.questions || []), ...(updates.questions || [])])),
+      exams: Array.from(new Set([...(current.exams || []), ...(updates.exams || [])])),
+      scores: Array.from(new Set([...(current.scores || []), ...(updates.scores || [])])),
+    };
+    saveToStorage(STORAGE_KEYS.PENDING_DELETIONS, merged);
+    return merged;
+  },
+
+  removeAcknowledgedDeletions: (acknowledged: DeletedIdsPayload) => {
+    const current = StorageService.getPendingDeletions();
+    const removeSet = (orig: string[] | undefined, ack: string[] | undefined) => {
+      if (!orig) return [];
+      if (!ack) return orig;
+      const ackSet = new Set(ack);
+      return orig.filter((id) => !ackSet.has(id));
+    };
+
+    const next: DeletedIdsPayload = {
+      groups: removeSet(current.groups, acknowledged.groups),
+      students: removeSet(current.students, acknowledged.students),
+      attendance: removeSet(current.attendance, acknowledged.attendance),
+      payments: removeSet(current.payments, acknowledged.payments),
+      questions: removeSet(current.questions, acknowledged.questions),
+      exams: removeSet(current.exams, acknowledged.exams),
+      scores: removeSet(current.scores, acknowledged.scores),
+    };
+    saveToStorage(STORAGE_KEYS.PENDING_DELETIONS, next);
+  },
+
+  clearPendingDeletions: () => {
+    saveToStorage(STORAGE_KEYS.PENDING_DELETIONS, {});
+  },
+
+  getLastBackupDate: (): string | null => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.LAST_BACKUP_DATE);
+    } catch {
+      return null;
+    }
+  },
+
+  saveLastBackupDate: (dateStr: string) => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LAST_BACKUP_DATE, dateStr);
+    } catch {
+      // ignore
+    }
+  },
+
   getDarkMode: () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.DARK_MODE);
@@ -722,41 +817,70 @@ export const StorageService = {
     localStorage.removeItem(STORAGE_KEYS.ATTENDANCE);
     localStorage.removeItem(STORAGE_KEYS.PAYMENTS);
     localStorage.removeItem(STORAGE_KEYS.RESOURCES);
+    localStorage.removeItem(STORAGE_KEYS.EXAMS);
+    localStorage.removeItem(STORAGE_KEYS.EXAM_SCORES);
+    localStorage.removeItem(STORAGE_KEYS.QUESTIONS);
+    localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
+    localStorage.removeItem(STORAGE_KEYS.PENDING_DELETIONS);
+    localStorage.removeItem(STORAGE_KEYS.LAST_BACKUP_DATE);
   },
 
-  exportFullBackup: () => {
+  exportFullBackup: (): string => {
+    const today = new Date().toISOString().split('T')[0];
     const data = {
+      version: '2.0',
+      exportDate: new Date().toISOString(),
       teacher: StorageService.getTeacher(),
       groups: StorageService.getGroups(),
       students: StorageService.getStudents(),
       attendance: StorageService.getAttendance(),
       payments: StorageService.getPayments(),
+      questions: StorageService.getQuestions(),
+      exams: StorageService.getExams(),
+      scores: StorageService.getExamScores(),
       resources: StorageService.getResources(),
-      exportDate: new Date().toISOString(),
-      version: '1.0',
+      submissions: StorageService.getSubmissions(),
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `teacher_app_backup_${new Date().toISOString().split('T')[0]}.json`;
+    const fileName = `teacher-backup-${today}.json`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
+    StorageService.saveLastBackupDate(today);
+    return fileName;
   },
 
-  importBackup: (jsonString: string): boolean => {
-    try {
-      const data = JSON.parse(jsonString);
-      if (data.teacher) StorageService.saveTeacher(data.teacher);
-      if (Array.isArray(data.groups)) StorageService.saveGroups(data.groups);
-      if (Array.isArray(data.students)) StorageService.saveStudents(data.students);
-      if (Array.isArray(data.attendance)) StorageService.saveAttendance(data.attendance);
-      if (Array.isArray(data.payments)) StorageService.savePayments(data.payments);
-      if (Array.isArray(data.resources)) StorageService.saveResources(data.resources);
-      return true;
-    } catch (err) {
-      console.error('Import failed', err);
-      return false;
+  validateBackupFile: (data: any): { valid: boolean; error?: string } => {
+    if (!data || typeof data !== 'object') {
+      return { valid: false, error: 'الملف ليس بتنسيق JSON صحيح.' };
     }
+    if (!data.teacher && !Array.isArray(data.students) && !Array.isArray(data.groups)) {
+      return { valid: false, error: 'الملف المحدد لا يحتوي على بنية بيانات صحيحة لنسخة المعلم الاحتياطية.' };
+    }
+    return { valid: true };
+  },
+
+  importBackupData: (data: any) => {
+    if (data.teacher) StorageService.saveTeacher(data.teacher);
+    if (Array.isArray(data.groups)) StorageService.saveGroups(data.groups);
+    if (Array.isArray(data.students)) {
+      const withTokens = data.students.map((s: any) => ({
+        ...s,
+        portalToken: s.portalToken || generatePortalToken(),
+      }));
+      StorageService.saveStudents(withTokens);
+    }
+    if (Array.isArray(data.attendance)) StorageService.saveAttendance(data.attendance);
+    if (Array.isArray(data.payments)) StorageService.savePayments(data.payments);
+    if (Array.isArray(data.questions)) StorageService.saveQuestions(data.questions);
+    if (Array.isArray(data.exams)) StorageService.saveExams(data.exams);
+    if (Array.isArray(data.scores)) StorageService.saveExamScores(data.scores);
+    if (Array.isArray(data.resources)) StorageService.saveResources(data.resources);
+    if (Array.isArray(data.submissions)) StorageService.saveSubmissions(data.submissions);
+    StorageService.saveLastBackupDate(new Date().toISOString().split('T')[0]);
   },
 };

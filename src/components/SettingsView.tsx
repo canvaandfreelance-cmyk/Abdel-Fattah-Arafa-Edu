@@ -59,6 +59,7 @@ interface SettingsViewProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onDataReloadNeeded: () => void;
+  onSyncWithCloud?: () => Promise<void>;
   totalStudents?: number;
   totalGroups?: number;
 }
@@ -69,6 +70,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   isDarkMode,
   onToggleDarkMode,
   onDataReloadNeeded,
+  onSyncWithCloud,
   totalStudents = 0,
   totalGroups = 0,
 }) => {
@@ -84,6 +86,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [statusNotice, setStatusNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+  const [showImportConfirmModal, setShowImportConfirmModal] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState<any>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,27 +176,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleExportBackup = () => {
-    StorageService.exportFullBackup();
-    notify('تم بدء تنزيل النسخة الاحتياطية كملف JSON.');
+    try {
+      const fileName = StorageService.exportFullBackup();
+      notify(`تم تصدير وتنزيل كافة البيانات بنجاح في الملف (${fileName})`);
+    } catch (err) {
+      console.error(err);
+      notify('حدث خطأ أثناء تصدير النسخة الاحتياطية.', 'error');
+    }
   };
 
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      if (content) {
-        const success = StorageService.importBackup(content);
-        if (success) {
-          notify('تم استعادة النسخة الاحتياطية بنجاح!');
-          onDataReloadNeeded();
-        } else {
-          notify('فشل استعادة الملف، تأكد من صحة الملف الاحتياطي.', 'error');
+      if (!content) {
+        notify('الملف فارغ أو تعذر قراءته.', 'error');
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(content);
+        const validation = StorageService.validateBackupFile(parsed);
+        if (!validation.valid) {
+          notify(validation.error || 'الملف لا يحتوي على بنية بيانات صحيحة.', 'error');
+          return;
         }
+
+        // Valid backup: prompt for confirmation before replacing current data
+        setPendingImportData(parsed);
+        setShowImportConfirmModal(true);
+      } catch (err) {
+        console.error('JSON parse error:', err);
+        notify('فشل قراءة الملف: تأكد من أن الملف بصيغة JSON صحيحة.', 'error');
       }
     };
+
     reader.readAsText(file);
+    // Reset input value so the same file can be picked again if needed
+    e.target.value = '';
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingImportData) return;
+
+    try {
+      setIsImporting(true);
+      StorageService.importBackupData(pendingImportData);
+      onDataReloadNeeded();
+
+      // Sync with cloud if user is authenticated
+      if (onSyncWithCloud) {
+        await onSyncWithCloud();
+      }
+
+      setShowImportConfirmModal(false);
+      setPendingImportData(null);
+      notify('تم استيراد النسخة الاحتياطية واستبدال البيانات ومزامنتها بنجاح!');
+    } catch (err) {
+      console.error('Import confirmation error:', err);
+      notify('حدث خطأ أثناء استيراد البيانات.', 'error');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleConfirmResetData = () => {
@@ -621,9 +670,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={handleExportBackup}
                 className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors"
+                title="تنزيل ملف JSON يحتوي على كافة بيانات المنظومة والطلاب"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-600" />
-                <span>تنزيل نسخة احتياطية (JSON)</span>
+                <span>تصدير كل البيانات</span>
               </button>
 
               <label className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-colors">
@@ -649,6 +699,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Import Backup Confirmation Modal */}
+      {showImportConfirmModal && pendingImportData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 text-right">
+            <div className="flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400">
+              <Upload className="w-6 h-6" />
+              <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white">
+                تأكيد استيراد النسخة الاحتياطية
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              تم فحص محتويات ملف النسخة الاحتياطية بنجاح وهي جاهزة للاستيراد. 
+              <span className="font-bold text-rose-600 dark:text-rose-400 block mt-1">
+                تنبيه: سيتم استبدال البيانات الحالية بالكامل بالبيانات الموجودة في الملف، وتحديثها في قاعدة البيانات السحابية.
+              </span>
+            </p>
+
+            {/* Backup summary preview */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+              <div className="font-bold text-slate-800 dark:text-slate-200 mb-2">محتويات النسخة الاحتياطية:</div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                <div>• المعلم: {pendingImportData.teacher?.name || 'غير محدد'}</div>
+                <div>• عدد الطلاب: {pendingImportData.students?.length || 0} طالب</div>
+                <div>• المجموعات: {pendingImportData.groups?.length || 0} مجموعة</div>
+                <div>• سجلات الحضور: {pendingImportData.attendance?.length || 0} سجل</div>
+                <div>• المدفوعات: {pendingImportData.payments?.length || 0} إيصال</div>
+                <div>• الامتحانات والأسئلة: {(pendingImportData.exams?.length || 0) + (pendingImportData.questions?.length || 0)} عنصر</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={isImporting}
+                onClick={() => {
+                  setShowImportConfirmModal(false);
+                  setPendingImportData(null);
+                }}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isImporting}
+                onClick={handleConfirmImport}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isImporting ? (
+                  <span>جاري الاستيراد والمزامنة...</span>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>تأكيد واستبدال البيانات</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reset Confirmation Modal */}
       {showResetConfirmModal && (

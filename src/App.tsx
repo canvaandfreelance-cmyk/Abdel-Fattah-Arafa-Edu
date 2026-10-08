@@ -19,7 +19,7 @@ import {
   BankQuestion,
   HomeworkStatus,
 } from './types';
-import { StorageService } from './utils/storage';
+import { StorageService, generatePortalToken } from './utils/storage';
 import { Navbar, NavTab } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { AttendanceView } from './components/AttendanceView';
@@ -76,34 +76,80 @@ function AppContent() {
         const cloudData = await fetchDataFromCloud();
         if (!isMounted) return;
 
+        // Pending deletions protection: ensure locally deleted records are never brought back from cloud
+        const pending = StorageService.getPendingDeletions();
+        const pendingDelStudents = new Set(pending.students || []);
+        const pendingDelGroups = new Set(pending.groups || []);
+        const pendingDelAttendance = new Set(pending.attendance || []);
+        const pendingDelPayments = new Set(pending.payments || []);
+        const pendingDelQuestions = new Set(pending.questions || []);
+        const pendingDelExams = new Set(pending.exams || []);
+        const pendingDelScores = new Set(pending.scores || []);
+
+        const hasPending = Boolean(
+          pendingDelStudents.size > 0 ||
+          pendingDelGroups.size > 0 ||
+          pendingDelAttendance.size > 0 ||
+          pendingDelPayments.size > 0 ||
+          pendingDelQuestions.size > 0 ||
+          pendingDelExams.size > 0 ||
+          pendingDelScores.size > 0
+        );
+
         if (cloudData && (cloudData.students?.length > 0 || cloudData.groups?.length > 0)) {
           if (cloudData.teacherProfile) {
             setTeacher(cloudData.teacherProfile);
             StorageService.saveTeacher(cloudData.teacherProfile);
           }
           if (cloudData.groups?.length > 0) {
-            setGroups(cloudData.groups);
-            StorageService.saveGroups(cloudData.groups);
+            const filteredGroups = cloudData.groups.filter((g: Group) => !pendingDelGroups.has(g.id));
+            setGroups(filteredGroups);
+            StorageService.saveGroups(filteredGroups);
           }
           if (cloudData.students?.length > 0) {
-            setStudents(cloudData.students);
-            StorageService.saveStudents(cloudData.students);
+            const filteredStudents = cloudData.students
+              .filter((s: Student) => !pendingDelStudents.has(s.id))
+              .map((s: Student) => ({
+                ...s,
+                portalToken: s.portalToken || generatePortalToken(),
+              }));
+            setStudents(filteredStudents);
+            StorageService.saveStudents(filteredStudents);
           }
           if (cloudData.attendance?.length > 0) {
-            setAttendance(cloudData.attendance);
-            StorageService.saveAttendance(cloudData.attendance);
+            const filteredAttendance = cloudData.attendance.filter((a: AttendanceRecord) => !pendingDelAttendance.has(a.id));
+            setAttendance(filteredAttendance);
+            StorageService.saveAttendance(filteredAttendance);
           }
           if (cloudData.payments?.length > 0) {
-            setPayments(cloudData.payments);
-            StorageService.savePayments(cloudData.payments);
+            const filteredPayments = cloudData.payments.filter((p: PaymentRecord) => !pendingDelPayments.has(p.id));
+            setPayments(filteredPayments);
+            StorageService.savePayments(filteredPayments);
           }
           if (cloudData.questions?.length > 0) {
-            setQuestions(cloudData.questions);
-            StorageService.saveQuestions(cloudData.questions);
+            const filteredQuestions = cloudData.questions.filter((q: BankQuestion) => !pendingDelQuestions.has(q.id));
+            setQuestions(filteredQuestions);
+            StorageService.saveQuestions(filteredQuestions);
           }
           if (cloudData.exams?.length > 0) {
-            setExams(cloudData.exams);
-            StorageService.saveExams(cloudData.exams);
+            const filteredExams = cloudData.exams.filter((e: Exam) => !pendingDelExams.has(e.id));
+            setExams(filteredExams);
+            StorageService.saveExams(filteredExams);
+          }
+          if (cloudData.scores?.length > 0) {
+            const filteredScores = cloudData.scores.filter((sc: StudentExamScore) => !pendingDelScores.has(sc.id));
+            setExamScores(filteredScores);
+            StorageService.saveExamScores(filteredScores);
+          }
+
+          // If there were offline deletions pending, sync them to cloud and clear them once acknowledged
+          if (hasPending) {
+            const delSyncSuccess = await syncDataToCloud({
+              deletedIds: pending,
+            });
+            if (delSyncSuccess) {
+              StorageService.clearPendingDeletions();
+            }
           }
         } else {
           // Cloud has no records yet; sync current local data to Cloud SQL
@@ -116,7 +162,11 @@ function AppContent() {
             questions,
             exams,
             scores: examScores,
+            deletedIds: hasPending ? pending : undefined,
           });
+          if (hasPending) {
+            StorageService.clearPendingDeletions();
+          }
         }
       } catch (err) {
         console.error('Error synchronizing with Cloud SQL:', err);
@@ -138,7 +188,8 @@ function AppContent() {
     }
     setIsSyncing(true);
     try {
-      await syncDataToCloud({
+      const pending = StorageService.getPendingDeletions();
+      const success = await syncDataToCloud({
         teacher,
         groups,
         students,
@@ -147,23 +198,22 @@ function AppContent() {
         questions,
         exams,
         scores: examScores,
+        deletedIds: pending,
       });
+      if (success) {
+        StorageService.clearPendingDeletions();
+      }
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Check URL parameters for student portal access (?student=STU-1001 or ?sid=stu-1)
+  // Check URL parameters for secure student portal access (?p=<token>)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const studentCode = params.get('student');
-    const studentId = params.get('sid');
-    if (studentCode || studentId) {
-      const found = students.find(
-        (s) =>
-          (studentId && s.id === studentId) ||
-          (studentCode && s.code.toLowerCase() === studentCode.toLowerCase())
-      );
+    const portalToken = params.get('p');
+    if (portalToken) {
+      const found = students.find((s) => s.portalToken === portalToken);
       if (found) {
         setLoggedInStudent(found);
       }
@@ -191,23 +241,43 @@ function AppContent() {
   };
 
   const handleAddStudent = (data: Omit<Student, 'id' | 'code'> & { code?: string }) => {
-    // Generate unique code like STU-1011
+    // Generate unique code like STU-1011 and long random portal token
     const nextCodeNum = students.length + 1001;
     const generatedCode = data.code || `STU-${nextCodeNum}`;
     const newStudent: Student = {
       ...data,
       id: `stu-${Date.now()}`,
       code: generatedCode,
+      portalToken: generatePortalToken(),
     };
     const updated = [newStudent, ...students];
     setStudents(updated);
     StorageService.saveStudents(updated);
+    if (currentUser) {
+      syncDataToCloud({ students: updated });
+    }
+  };
+
+  const handleRegeneratePortalToken = async (studentId: string) => {
+    const newToken = generatePortalToken();
+    const updated = students.map((s) => (s.id === studentId ? { ...s, portalToken: newToken } : s));
+    setStudents(updated);
+    StorageService.saveStudents(updated);
+    if (selectedStudentForCard && selectedStudentForCard.id === studentId) {
+      setSelectedStudentForCard({ ...selectedStudentForCard, portalToken: newToken });
+    }
+    if (currentUser) {
+      await syncDataToCloud({ students: updated });
+    }
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     const updated = students.map((s) => (s.id === updatedStudent.id ? updatedStudent : s));
     setStudents(updated);
     StorageService.saveStudents(updated);
+    if (currentUser) {
+      syncDataToCloud({ students: updated });
+    }
   };
 
   const handleDeleteStudent = (id: string) => {
@@ -215,14 +285,46 @@ function AppContent() {
     setStudents(updatedStudents);
     StorageService.saveStudents(updatedStudents);
 
-    // Also clean up associated attendance and payments for this student
+    // Cascade: attendance records for this student
+    const delAtt = attendance.filter((a) => a.studentId === id);
+    const delAttIds = delAtt.map((a) => a.id);
     const updatedAttendance = attendance.filter((a) => a.studentId !== id);
     setAttendance(updatedAttendance);
     StorageService.saveAttendance(updatedAttendance);
 
+    // Cascade: payments for this student
+    const delPay = payments.filter((p) => p.studentId === id);
+    const delPayIds = delPay.map((p) => p.id);
     const updatedPayments = payments.filter((p) => p.studentId !== id);
     setPayments(updatedPayments);
     StorageService.savePayments(updatedPayments);
+
+    // Cascade: exam scores for this student
+    const delScores = examScores.filter((sc) => sc.studentId === id);
+    const delScoreIds = delScores.map((sc) => sc.id);
+    const updatedScores = examScores.filter((sc) => sc.studentId !== id);
+    setExamScores(updatedScores);
+    StorageService.saveExamScores(updatedScores);
+
+    const pendingPayload = {
+      students: [id],
+      attendance: delAttIds,
+      payments: delPayIds,
+      scores: delScoreIds,
+    };
+    StorageService.addPendingDeletions(pendingPayload);
+
+    if (currentUser) {
+      syncDataToCloud({
+        students: updatedStudents,
+        attendance: updatedAttendance,
+        payments: updatedPayments,
+        scores: updatedScores,
+        deletedIds: pendingPayload,
+      }).then((success) => {
+        if (success) StorageService.removeAcknowledgedDeletions(pendingPayload);
+      });
+    }
   };
 
   const handleAddGroup = (data: Omit<Group, 'id' | 'createdAt'>) => {
@@ -234,31 +336,83 @@ function AppContent() {
     const updated = [...groups, newGroup];
     setGroups(updated);
     StorageService.saveGroups(updated);
+    if (currentUser) {
+      syncDataToCloud({ groups: updated });
+    }
   };
 
   const handleUpdateGroup = (updatedGroup: Group) => {
     const updated = groups.map((g) => (g.id === updatedGroup.id ? updatedGroup : g));
     setGroups(updated);
     StorageService.saveGroups(updated);
+    if (currentUser) {
+      syncDataToCloud({ groups: updated });
+    }
   };
 
-  const handleDeleteGroup = (id: string, transferToGroupId?: string) => {
+  const handleDeleteGroup = (id: string) => {
     const updatedGroups = groups.filter((g) => g.id !== id);
     setGroups(updatedGroups);
     StorageService.saveGroups(updatedGroups);
 
-    // If students were assigned to this group, reassign or unassign cleanly
-    const updatedStudents = students.map((s) => {
-      if (s.groupId === id) {
-        return {
-          ...s,
-          groupId: transferToGroupId || '',
-        };
-      }
-      return s;
-    });
+    // Cascade: delete all students belonging to this group
+    const studentsInGroup = students.filter((s) => s.groupId === id);
+    const studentIdsInGroup = studentsInGroup.map((s) => s.id);
+    const updatedStudents = students.filter((s) => s.groupId !== id);
     setStudents(updatedStudents);
     StorageService.saveStudents(updatedStudents);
+
+    // Cascade: delete attendance for group and its students
+    const delAtt = attendance.filter((a) => a.groupId === id || studentIdsInGroup.includes(a.studentId));
+    const delAttIds = delAtt.map((a) => a.id);
+    const updatedAttendance = attendance.filter((a) => a.groupId !== id && !studentIdsInGroup.includes(a.studentId));
+    setAttendance(updatedAttendance);
+    StorageService.saveAttendance(updatedAttendance);
+
+    // Cascade: delete payments for group and its students
+    const delPay = payments.filter((p) => p.groupId === id || studentIdsInGroup.includes(p.studentId));
+    const delPayIds = delPay.map((p) => p.id);
+    const updatedPayments = payments.filter((p) => p.groupId !== id && !studentIdsInGroup.includes(p.studentId));
+    setPayments(updatedPayments);
+    StorageService.savePayments(updatedPayments);
+
+    // Cascade: delete exams for this group
+    const delExams = exams.filter((e) => e.groupId === id);
+    const delExamIds = delExams.map((e) => e.id);
+    const updatedExams = exams.filter((e) => e.groupId !== id);
+    setExams(updatedExams);
+    StorageService.saveExams(updatedExams);
+
+    // Cascade: delete scores for those exams and students
+    const delScores = examScores.filter((sc) => delExamIds.includes(sc.examId) || studentIdsInGroup.includes(sc.studentId));
+    const delScoreIds = delScores.map((sc) => sc.id);
+    const updatedScores = examScores.filter((sc) => !delExamIds.includes(sc.examId) && !studentIdsInGroup.includes(sc.studentId));
+    setExamScores(updatedScores);
+    StorageService.saveExamScores(updatedScores);
+
+    const pendingPayload = {
+      groups: [id],
+      students: studentIdsInGroup,
+      attendance: delAttIds,
+      payments: delPayIds,
+      exams: delExamIds,
+      scores: delScoreIds,
+    };
+    StorageService.addPendingDeletions(pendingPayload);
+
+    if (currentUser) {
+      syncDataToCloud({
+        groups: updatedGroups,
+        students: updatedStudents,
+        attendance: updatedAttendance,
+        payments: updatedPayments,
+        exams: updatedExams,
+        scores: updatedScores,
+        deletedIds: pendingPayload,
+      }).then((success) => {
+        if (success) StorageService.removeAcknowledgedDeletions(pendingPayload);
+      });
+    }
   };
 
   const handleRecordAttendance = (
@@ -306,6 +460,9 @@ function AppContent() {
 
     setAttendance(updated);
     StorageService.saveAttendance(updated);
+    if (currentUser) {
+      syncDataToCloud({ attendance: updated });
+    }
   };
 
   const handleAddQuestion = (data: Omit<BankQuestion, 'id' | 'createdAt'>) => {
@@ -317,18 +474,36 @@ function AppContent() {
     const updated = [newQuestion, ...questions];
     setQuestions(updated);
     StorageService.saveQuestions(updated);
+    if (currentUser) {
+      syncDataToCloud({ questions: updated });
+    }
   };
 
   const handleUpdateQuestion = (updatedQuestion: BankQuestion) => {
     const updated = questions.map((q) => (q.id === updatedQuestion.id ? updatedQuestion : q));
     setQuestions(updated);
     StorageService.saveQuestions(updated);
+    if (currentUser) {
+      syncDataToCloud({ questions: updated });
+    }
   };
 
   const handleDeleteQuestion = (id: string) => {
     const updated = questions.filter((q) => q.id !== id);
     setQuestions(updated);
     StorageService.saveQuestions(updated);
+
+    const pendingPayload = { questions: [id] };
+    StorageService.addPendingDeletions(pendingPayload);
+
+    if (currentUser) {
+      syncDataToCloud({
+        questions: updated,
+        deletedIds: pendingPayload,
+      }).then((success) => {
+        if (success) StorageService.removeAcknowledgedDeletions(pendingPayload);
+      });
+    }
   };
 
   const handleCreateExamFromBank = (newExamData: Omit<Exam, 'id' | 'createdAt'>) => {
@@ -340,6 +515,9 @@ function AppContent() {
     const updated = [newExam, ...exams];
     setExams(updated);
     StorageService.saveExams(updated);
+    if (currentUser) {
+      syncDataToCloud({ exams: updated });
+    }
     setCurrentTab('exams');
   };
 
@@ -373,7 +551,28 @@ function AppContent() {
     const updated = [newPayment, ...payments];
     setPayments(updated);
     StorageService.savePayments(updated);
+    if (currentUser) {
+      syncDataToCloud({ payments: updated });
+    }
     return newPayment;
+  };
+
+  const handleDeletePayment = (id: string) => {
+    const updated = payments.filter((p) => p.id !== id);
+    setPayments(updated);
+    StorageService.savePayments(updated);
+
+    const pendingPayload = { payments: [id] };
+    StorageService.addPendingDeletions(pendingPayload);
+
+    if (currentUser) {
+      syncDataToCloud({
+        payments: updated,
+        deletedIds: pendingPayload,
+      }).then((success) => {
+        if (success) StorageService.removeAcknowledgedDeletions(pendingPayload);
+      });
+    }
   };
 
   const handleAddResource = (data: Omit<EducationalResource, 'id' | 'createdAt'>) => {
@@ -402,17 +601,38 @@ function AppContent() {
     const updated = [newExam, ...exams];
     setExams(updated);
     StorageService.saveExams(updated);
+    if (currentUser) {
+      syncDataToCloud({ exams: updated });
+    }
     return newExam;
   };
 
   const handleDeleteExam = (id: string) => {
-    const updated = exams.filter((e) => e.id !== id);
-    setExams(updated);
-    StorageService.saveExams(updated);
+    const updatedExams = exams.filter((e) => e.id !== id);
+    setExams(updatedExams);
+    StorageService.saveExams(updatedExams);
 
+    const delScores = examScores.filter((s) => s.examId === id);
+    const delScoreIds = delScores.map((s) => s.id);
     const updatedScores = examScores.filter((s) => s.examId !== id);
     setExamScores(updatedScores);
     StorageService.saveExamScores(updatedScores);
+
+    const pendingPayload = {
+      exams: [id],
+      scores: delScoreIds,
+    };
+    StorageService.addPendingDeletions(pendingPayload);
+
+    if (currentUser) {
+      syncDataToCloud({
+        exams: updatedExams,
+        scores: updatedScores,
+        deletedIds: pendingPayload,
+      }).then((success) => {
+        if (success) StorageService.removeAcknowledgedDeletions(pendingPayload);
+      });
+    }
   };
 
   const handleSaveExamScore = (newScore: StudentExamScore) => {
@@ -428,6 +648,9 @@ function AppContent() {
     }
     setExamScores(updated);
     StorageService.saveExamScores(updated);
+    if (currentUser) {
+      syncDataToCloud({ scores: updated });
+    }
   };
 
   const handleSubmitResourceHomework = (submission: ResourceSubmission) => {
@@ -446,6 +669,7 @@ function AppContent() {
     setExams(StorageService.getExams());
     setExamScores(StorageService.getExamScores());
     setSubmissions(StorageService.getSubmissions());
+    setQuestions(StorageService.getQuestions());
   };
 
   // Helper to open QR scanner in a specific mode
@@ -484,6 +708,7 @@ function AppContent() {
         onExitPortal={() => {
           setLoggedInStudent(null);
           const url = new URL(window.location.href);
+          url.searchParams.delete('p');
           url.searchParams.delete('student');
           url.searchParams.delete('sid');
           window.history.replaceState({}, '', url.pathname);
@@ -616,6 +841,7 @@ function AppContent() {
             teacher={teacher}
             payments={payments}
             onRecordPayment={handleRecordPayment}
+            onDeletePayment={handleDeletePayment}
             onOpenScanner={() => handleOpenScannerWithMode('payment')}
             preselectedStudent={preselectedStudentForPayment}
             onClearPreselectedStudent={() => setPreselectedStudentForPayment(null)}
@@ -639,6 +865,9 @@ function AppContent() {
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onDataReloadNeeded={handleReloadData}
+            onSyncWithCloud={handleManualSync}
+            totalStudents={students.length}
+            totalGroups={groups.length}
           />
         )}
       </main>
@@ -669,6 +898,7 @@ function AppContent() {
           setSelectedStudentForCard(null);
           setLoggedInStudent(student);
         }}
+        onRegeneratePortalToken={handleRegeneratePortalToken}
       />
 
       {/* Cloud SQL Database Security & Account Modal */}
